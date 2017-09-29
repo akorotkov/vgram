@@ -35,7 +35,7 @@ SELECT qgram_stat(s) FROM dblp_titles;
 Statistics is cached in local memory of backend memory.  Use
 `qgram_stat_reset_cache()` to reset statistics.
 
-You can check V-gram extraction using `get_vgrams(text)` function.  NOTICEs
+You can check V-gram extraction using `get_vgrams(text)` function.  NOTICE
 prints estimated frequencies of V-grams.
 
 ```sql
