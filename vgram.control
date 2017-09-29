@@ -1,0 +1,5 @@
+# vgram extension
+comment = 'Variable-length grams'
+default_version = '1.0'
+module_pathname = '$libdir/vgram'
+relocatable = true
