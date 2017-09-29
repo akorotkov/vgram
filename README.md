@@ -95,7 +95,7 @@ Availability
 
 vgram is realized as an extension and not available in default PostgreSQL
 installation. It is available from
-[github](https://github.com/postgrespro/vgram)
+[github](https://github.com/akorotkov/vgram)
 under the same license as
 [PostgreSQL](https://www.postgresql.org/about/licence/)
 and supports PostgreSQL 9.2+.
