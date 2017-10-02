@@ -1,3 +1,15 @@
+/*-------------------------------------------------------------------------
+ *
+ * vgram_gin.c
+ *		Routines for GIN indexing of V-grams extracted from strings.
+ *
+ * Copyright (c) 2011-2017, Alexander Korotkov
+ *
+ * IDENTIFICATION
+ *	  contrib/vgram/vgram_gin.c
+ *
+ *-------------------------------------------------------------------------
+ */
 #include "postgres.h"
 #include "access/gin.h"
 #include "access/skey.h"
@@ -6,28 +18,34 @@
 
 #include "vgram.h"
 
-Datum vgram_cmp(PG_FUNCTION_ARGS);
+Datum		vgram_cmp(PG_FUNCTION_ARGS);
+
 PG_FUNCTION_INFO_V1(vgram_cmp);
 
-Datum vgram_gin_extract_value(PG_FUNCTION_ARGS);
+Datum		vgram_gin_extract_value(PG_FUNCTION_ARGS);
+
 PG_FUNCTION_INFO_V1(vgram_gin_extract_value);
 
-Datum vgram_gin_consitent(PG_FUNCTION_ARGS);
+Datum		vgram_gin_consitent(PG_FUNCTION_ARGS);
+
 PG_FUNCTION_INFO_V1(vgram_gin_consitent);
 
-Datum vgram_gin_extract_query(PG_FUNCTION_ARGS);
+Datum		vgram_gin_extract_query(PG_FUNCTION_ARGS);
+
 PG_FUNCTION_INFO_V1(vgram_gin_extract_query);
 
 static int
 vgram_cmp_internal(Datum d1, Datum d2)
 {
-	text *vgram1 = DatumGetTextPP(d1);
-	text *vgram2 = DatumGetTextPP(d2);
-	int len1, len2, cmp;
-	
+	text	   *vgram1 = DatumGetTextPP(d1);
+	text	   *vgram2 = DatumGetTextPP(d2);
+	int			len1,
+				len2,
+				cmp;
+
 	len1 = VARSIZE_ANY_EXHDR(vgram1);
 	len2 = VARSIZE_ANY_EXHDR(vgram2);
-	
+
 	cmp = strncmp(VARDATA_ANY(vgram1), VARDATA_ANY(vgram2), Min(len1, len2));
 	if (cmp != 0)
 		return cmp;
@@ -42,22 +60,22 @@ vgram_cmp_internal(Datum d1, Datum d2)
 static int
 vgram_sort_cmp(const void *v1, const void *v2)
 {
-	return vgram_cmp_internal(
-		*((Datum *)v1),
-		*((Datum *)v2)
-	);
+	return vgram_cmp_internal(*((Datum *) v1),
+							  *((Datum *) v2));
 }
 
 static void
 entries_unique(Datum *entries, int32 *nentries)
 {
-	int32 n = *nentries, i, j = 0;
-	
+	int32		n = *nentries,
+				i,
+				j = 0;
+
 	if (n == 0)
 		return;
-	
+
 	qsort(entries, n, sizeof(Datum *), vgram_sort_cmp);
-	
+
 	for (i = 1; i < n; i++)
 	{
 		if (vgram_cmp_internal(entries[i], entries[j]))
@@ -66,34 +84,35 @@ entries_unique(Datum *entries, int32 *nentries)
 			entries[j] = entries[i];
 		}
 	}
-	*nentries = j + 1;	
+	*nentries = j + 1;
 }
 
 Datum
 vgram_cmp(PG_FUNCTION_ARGS)
 {
-	Datum d1 = PG_GETARG_DATUM(0);
-	Datum d2 = PG_GETARG_DATUM(1);
+	Datum		d1 = PG_GETARG_DATUM(0);
+	Datum		d2 = PG_GETARG_DATUM(1);
+
 	PG_RETURN_INT32(vgram_cmp_internal(d1, d2));
 }
 
 typedef struct
 {
-	Datum	*entries;
-	int32	 nentries;
-	int32	 allocatedEntries;
-} ExtractValueInfo;
+	Datum	   *entries;
+	int32		nentries;
+	int32		allocatedEntries;
+}	ExtractValueInfo;
 
 static void
 extractVGram(char *vgram, void *userData)
 {
-	ExtractValueInfo *info = (ExtractValueInfo *)userData;
-	
+	ExtractValueInfo *info = (ExtractValueInfo *) userData;
+
 	info->nentries++;
 	if (info->nentries > info->allocatedEntries)
 	{
 		info->allocatedEntries *= 2;
-		info->entries = (Datum *)repalloc(info->entries, sizeof(Datum) * info->allocatedEntries);
+		info->entries = (Datum *) repalloc(info->entries, sizeof(Datum) * info->allocatedEntries);
 	}
 	info->entries[info->nentries - 1] = PointerGetDatum(cstring_to_text(vgram));
 	pfree(vgram);
@@ -106,24 +125,24 @@ vgram_gin_extract_value(PG_FUNCTION_ARGS)
 	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
 	ExtractValueInfo info;
 	ExtractVGramsInfo userData;
-	
+
 	loadStats();
-	
+
 	info.nentries = 0;
 	info.allocatedEntries = 4;
-	info.entries = (Datum *)palloc(sizeof(Datum) * info.allocatedEntries);
-	
+	info.entries = (Datum *) palloc(sizeof(Datum) * info.allocatedEntries);
+
 	userData.callback = extractVGram;
 	userData.userData = &info;
-	
+
 	extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), extractMinimalVGramsWord, &userData);
-	
+
 	PG_FREE_IF_COPY(s, 0);
-	
+
 	entries_unique(info.entries, &info.nentries);
-	
+
 	*nentries = info.nentries;
-	PG_RETURN_POINTER(info.entries);	
+	PG_RETURN_POINTER(info.entries);
 }
 
 Datum
@@ -181,7 +200,7 @@ vgram_gin_extract_query(PG_FUNCTION_ARGS)
 	Datum	   *entries = NULL;
 
 	loadStats();
-	
+
 	switch (strategy)
 	{
 		case ILikeStrategyNumber:
@@ -195,7 +214,7 @@ vgram_gin_extract_query(PG_FUNCTION_ARGS)
 	}
 
 	entries_unique(entries, nentries);
-	
+
 	/*
 	 * If no trigram was extracted then we have to scan all the index.
 	 */

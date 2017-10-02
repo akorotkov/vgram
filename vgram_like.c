@@ -1,3 +1,16 @@
+/*-------------------------------------------------------------------------
+ *
+ * vgram_like.c
+ *		Routines for using index over V-grams to accelerate like/ilike
+ *		queries.
+ *
+ * Copyright (c) 2011-2017, Alexander Korotkov
+ *
+ * IDENTIFICATION
+ *	  contrib/vgram/vgram_like.c
+ *
+ *-------------------------------------------------------------------------
+ */
 #include "postgres.h"
 #include "fmgr.h"
 #include "utils/builtins.h"
@@ -33,7 +46,7 @@ get_wildcard_part(const char *str, int lenstr,
 	bool		in_wildcard_meta = false;
 	bool		in_escape = false;
 	int			clen;
-	
+
 	/*
 	 * Find the first word character remembering whether last character was
 	 * wildcard meta-character.
@@ -143,18 +156,19 @@ get_wildcard_part(const char *str, int lenstr,
 
 typedef struct
 {
-	char *vgram;
-	float4 selectivity;
-} VGramInfo;
+	char	   *vgram;
+	float4		selectivity;
+}	VGramInfo;
 
 static void
 addVGram(char *vgram, void *userData)
 {
-	float4 selectivity = estimateVGramSelectivilty(vgram);
-	float4 placeSelectivity;
-	int i, place = -1;
-	VGramInfo *vgrams = (VGramInfo *)userData;	
-	
+	float4		selectivity = estimateVGramSelectivilty(vgram);
+	float4		placeSelectivity;
+	int			i,
+				place = -1;
+	VGramInfo  *vgrams = (VGramInfo *) userData;
+
 	for (i = 0; i < OPTIMAL_VGRAM_COUNT; i++)
 	{
 		if (vgrams[i].vgram == NULL)
@@ -182,43 +196,51 @@ addVGram(char *vgram, void *userData)
 Datum *
 extractQueryLike(int32 *nentries, text *pattern)
 {
-	char *buf, *buf2;
-	const char *eword, *str;
-	int len, bytelen, charlen, i;
-	VGramInfo vgrams[OPTIMAL_VGRAM_COUNT];
+	char	   *buf,
+			   *buf2;
+	const char *eword,
+			   *str;
+	int			len,
+				bytelen,
+				charlen,
+				i;
+	VGramInfo	vgrams[OPTIMAL_VGRAM_COUNT];
 	ExtractVGramsInfo userData;
-	Datum *entries;
-	
+	Datum	   *entries;
+
 	userData.callback = addVGram;
-	userData.userData = (void *)vgrams;
-	
+	userData.userData = (void *) vgrams;
+
 	memset(vgrams, 0, sizeof(vgrams));
-	
-	str = (char *)VARDATA_ANY(pattern);
+
+	str = (char *) VARDATA_ANY(pattern);
 	len = VARSIZE_ANY_EXHDR(pattern);
-	
-	buf = (char *)palloc(len + 3);
+
+	buf = (char *) palloc(len + 3);
 	eword = str;
 	while ((eword = get_wildcard_part(eword, len - (eword - str),
 									  buf, &bytelen, &charlen)) != NULL)
 	{
 		buf2 = lowerstr_with_len(buf, bytelen);
 		bytelen = strlen(buf2);
-		
+
 		extractMinimalVGramsWord(buf2, buf2 + bytelen, &userData);
-		
+
 		pfree(buf2);
 	}
 	pfree(buf);
-	
+
 	*nentries = 0;
 	while (*nentries < OPTIMAL_VGRAM_COUNT && vgrams[*nentries].vgram)
 	{
-		//elog(NOTICE, "%s %f", vgrams[*nentries].vgram, vgrams[*nentries].selectivity);
+		/*
+		 * elog(NOTICE, "%s %f", vgrams[*nentries].vgram,
+		 * vgrams[*nentries].selectivity);
+		 */
 		(*nentries)++;
 	}
-	
-	entries = (Datum *)palloc(sizeof(Datum) * (*nentries));
+
+	entries = (Datum *) palloc(sizeof(Datum) * (*nentries));
 	for (i = 0; i < *nentries; i++)
 	{
 		entries[i] = PointerGetDatum(cstring_to_text(vgrams[i].vgram));
