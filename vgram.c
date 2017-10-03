@@ -274,14 +274,23 @@ estimateVGramSelectivilty(const char *vgram)
 		p += pg_mblen(p);
 	}
 
-	if (len < 2)
+	if (len < minQ)
 		elog(ERROR, "Short vgram %s", vgram);
-
-	if (len == 2)
+	else if (len == minQ)
 	{
-		return
-			getCharacterFrequency(vgram, prev - vgram) *
-			getCharacterFrequency(prev, p - prev);
+		float4		result = 1.0f;
+
+		p = vgram;
+		while (*p)
+		{
+			int		char_len;
+
+			char_len = pg_mblen(p);
+			result *= getCharacterFrequency(p, char_len);
+			p += char_len;
+		}
+
+		return result;
 	}
 	else
 	{
