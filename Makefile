@@ -5,6 +5,9 @@ OBJS = vgram.o vgram_gin.o vgram_like.o
 
 EXTENSION = vgram
 DATA = vgram--1.0.sql
+PGFILEDESC = "vgram -- variable-length gram extranction and indexing"
+
+REGRESS = vgram
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

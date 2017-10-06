@@ -579,7 +579,7 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 										ALLOCSET_DEFAULT_MINSIZE,
 										ALLOCSET_DEFAULT_INITSIZE,
 										ALLOCSET_DEFAULT_MAXSIZE);
-		state = (QGramStatState *) MemoryContextAlloc(context, sizeof(QGramStatState));
+		state = (QGramStatState *) MemoryContextAllocZero(context, sizeof(QGramStatState));
 		state->tmpContext = AllocSetContextCreate(aggcontext,
 												  "qgram_stat result",
 												  ALLOCSET_DEFAULT_MINSIZE,
@@ -587,7 +587,6 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 												  ALLOCSET_DEFAULT_MAXSIZE);
 		state->context = context;
 		oldcontext = MemoryContextSwitchTo(state->tmpContext);
-		state->totalCount = 0;
 
 		qgramsHashCtl.keysize = sizeof(QGramHashKey);
 		qgramsHashCtl.entrysize = sizeof(QGramHashValue);
