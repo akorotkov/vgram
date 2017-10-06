@@ -26,9 +26,13 @@ Datum		vgram_gin_extract_value(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(vgram_gin_extract_value);
 
-Datum		vgram_gin_consitent(PG_FUNCTION_ARGS);
+Datum		vgram_gin_consistent(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(vgram_gin_consitent);
+PG_FUNCTION_INFO_V1(vgram_gin_consistent);
+
+Datum		vgram_gin_triconsistent(PG_FUNCTION_ARGS);
+
+PG_FUNCTION_INFO_V1(vgram_gin_triconsistent);
 
 Datum		vgram_gin_extract_query(PG_FUNCTION_ARGS);
 
@@ -146,7 +150,7 @@ vgram_gin_extract_value(PG_FUNCTION_ARGS)
 }
 
 Datum
-vgram_gin_consitent(PG_FUNCTION_ARGS)
+vgram_gin_consistent(PG_FUNCTION_ARGS)
 {
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
 	StrategyNumber strategy = PG_GETARG_UINT16(1);
@@ -184,6 +188,44 @@ vgram_gin_consitent(PG_FUNCTION_ARGS)
 	}
 
 	PG_RETURN_BOOL(res);
+}
+
+Datum
+vgram_gin_triconsistent(PG_FUNCTION_ARGS)
+{
+	GinTernaryValue *check = (GinTernaryValue *) PG_GETARG_POINTER(0);
+	StrategyNumber strategy = PG_GETARG_UINT16(1);
+
+	/* text    *query = PG_GETARG_TEXT_P(2); */
+	int32		nkeys = PG_GETARG_INT32(3);
+
+	/* Pointer	  *extra_data = (Pointer *) PG_GETARG_POINTER(4); */
+	GinTernaryValue res = GIN_MAYBE;
+	int32		i;
+
+	switch (strategy)
+	{
+		case ILikeStrategyNumber:
+		case LikeStrategyNumber:
+			/* Check if all extracted trigrams are presented. */
+			for (i = 0; i < nkeys; i++)
+			{
+				if (check[i] == GIN_FALSE)
+				{
+					res = GIN_FALSE;
+					break;
+				}
+			}
+			break;
+		default:
+			elog(ERROR, "unrecognized strategy number: %d", strategy);
+			res = false;		/* keep compiler quiet */
+			break;
+	}
+
+	/* All cases served by this function are inexact */
+	Assert(res != GIN_TRUE);
+	PG_RETURN_GIN_TERNARY_VALUE(res);
 }
 
 Datum

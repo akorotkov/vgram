@@ -38,9 +38,9 @@ AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE;
 
 CREATE AGGREGATE qgram_stat(text) (
-  SFUNC=qgram_stat_transfn,
-  STYPE=internal,
-  FINALFUNC=qgram_stat_finalfn
+	SFUNC = qgram_stat_transfn,
+	STYPE = internal,
+	FINALFUNC = qgram_stat_finalfn
 );
 
 -- support functions for gin
@@ -59,19 +59,25 @@ RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE FUNCTION vgram_gin_consitent(internal, int2, text, int4, internal, internal, internal, internal)
+CREATE FUNCTION vgram_gin_consistent(internal, int2, text, int4, internal, internal, internal, internal)
 RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION vgram_gin_triconsistent(internal, int2, text, int4, internal, internal, internal)
+RETURNS "char"
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR CLASS vgram_gin_ops
 FOR TYPE text USING gin
 AS
-        OPERATOR        3       pg_catalog.~~ (text, text),
-        OPERATOR        4       pg_catalog.~~* (text, text),
-        FUNCTION        1       vgram_cmp (text, text),
-        FUNCTION        2       vgram_gin_extract_value (text, internal),
-        FUNCTION        3       vgram_gin_extract_query (text, internal, int2, internal, internal, internal, internal),
-        FUNCTION        4       vgram_gin_consitent (internal, int2, text, int4, internal, internal, internal, internal),
-        STORAGE         text;
+		OPERATOR		3		pg_catalog.~~ (text, text),
+		OPERATOR		4		pg_catalog.~~* (text, text),
+		FUNCTION		1		vgram_cmp (text, text),
+		FUNCTION		2		vgram_gin_extract_value (text, internal),
+		FUNCTION		3		vgram_gin_extract_query (text, internal, int2, internal, internal, internal, internal),
+		FUNCTION		4		vgram_gin_consistent (internal, int2, text, int4, internal, internal, internal, internal),
+		FUNCTION		6		vgram_gin_triconsistent (internal, int2, text, int4, internal, internal, internal),
+		STORAGE			text;
 

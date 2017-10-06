@@ -156,40 +156,24 @@ get_wildcard_part(const char *str, int lenstr,
 
 typedef struct
 {
-	char	   *vgram;
-	float4		selectivity;
+	char	  **data;
+	int			count;
+	int			allocated;
 }	VGramInfo;
 
 static void
 addVGram(char *vgram, void *userData)
 {
-	float4		selectivity = estimateVGramSelectivilty(vgram);
-	float4		placeSelectivity;
-	int			i,
-				place = -1;
 	VGramInfo  *vgrams = (VGramInfo *) userData;
 
-	for (i = 0; i < OPTIMAL_VGRAM_COUNT; i++)
+	if (vgrams->count >= vgrams->allocated)
 	{
-		if (vgrams[i].vgram == NULL)
-		{
-			vgrams[i].vgram = vgram;
-			vgrams[i].selectivity = selectivity;
-			return;
-		}
-		if ((place < 0 && selectivity < vgrams[i].selectivity) ||
-			(place >= 0 && vgrams[i].selectivity > placeSelectivity))
-		{
-			place = i;
-			placeSelectivity = vgrams[i].selectivity;
-		}
+		vgrams->allocated *= 2;
+		vgrams->data = (char **) repalloc(vgrams->data, sizeof(char *) * vgrams->allocated);
 	}
-	if (place >= 0)
-	{
-		pfree(vgrams[place].vgram);
-		vgrams[place].vgram = vgram;
-		vgrams[place].selectivity = selectivity;
-	}
+
+	vgrams->data[vgrams->count] = vgram;
+	vgrams->count++;
 }
 
 
@@ -204,14 +188,16 @@ extractQueryLike(int32 *nentries, text *pattern)
 				bytelen,
 				charlen,
 				i;
-	VGramInfo	vgrams[OPTIMAL_VGRAM_COUNT];
+	VGramInfo	vgrams;
 	ExtractVGramsInfo userData;
 	Datum	   *entries;
 
 	userData.callback = addVGram;
-	userData.userData = (void *) vgrams;
+	userData.userData = (void *) &vgrams;
 
-	memset(vgrams, 0, sizeof(vgrams));
+	vgrams.count = 0;
+	vgrams.allocated = 16;
+	vgrams.data = (char **) palloc(sizeof(char *) * vgrams.allocated);
 
 	str = (char *) VARDATA_ANY(pattern);
 	len = VARSIZE_ANY_EXHDR(pattern);
@@ -230,20 +216,12 @@ extractQueryLike(int32 *nentries, text *pattern)
 	}
 	pfree(buf);
 
-	*nentries = 0;
-	while (*nentries < OPTIMAL_VGRAM_COUNT && vgrams[*nentries].vgram)
-	{
-		/*
-		 * elog(NOTICE, "%s %f", vgrams[*nentries].vgram,
-		 * vgrams[*nentries].selectivity);
-		 */
-		(*nentries)++;
-	}
+	*nentries = vgrams.count;
 
-	entries = (Datum *) palloc(sizeof(Datum) * (*nentries));
-	for (i = 0; i < *nentries; i++)
+	entries = (Datum *) palloc(sizeof(Datum) * vgrams.count);
+	for (i = 0; i < vgrams.count; i++)
 	{
-		entries[i] = PointerGetDatum(cstring_to_text(vgrams[i].vgram));
+		entries[i] = PointerGetDatum(cstring_to_text(vgrams.data[i]));
 	}
 	return entries;
 }
