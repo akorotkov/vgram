@@ -1,4 +1,5 @@
 # Generated subdirectories
+/.deps/
 /log/
 /results/
 /tmp_check/
