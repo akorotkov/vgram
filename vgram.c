@@ -310,20 +310,25 @@ estimateVGramSelectivilty(const char *vgram)
 void
 extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 {
-	const char *p = wordStart;
+	const char *p = wordStart,
+			   *r = wordStart;
+	int			len = 0;
 	ExtractVGramsInfo *info = (ExtractVGramsInfo *) userData;
 
 	while (p < wordEnd)
 	{
-		const char *r = p;
 		int			lower = 0,
-					upper = qgramTableSize - 1,
-					len = 0;
+					upper = qgramTableSize - 1;
+		bool		first_time = true;
 
 		while (len < maxQ && r < wordEnd)
 		{
-			r += pg_mblen(r);
-			len++;
+			if (!first_time || r <= p)
+			{
+				r += pg_mblen(r);
+				len++;
+			}
+			first_time = false;
 			if (len >= minQ && prefixQGramSearch(p, r - p, &lower, &upper) < 0)
 			{
 				char	   *qgram;
@@ -336,6 +341,7 @@ extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 			}
 		}
 		p += pg_mblen(p);
+		len--;
 	}
 }
 
@@ -343,21 +349,26 @@ void
 extractMinimalVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 {
 	const char *p = wordStart,
+			   *r = wordStart,
 			   *prevR = NULL,
 			   *prevP = NULL;
+	int			len = 0;
 	ExtractVGramsInfo *info = (ExtractVGramsInfo *) userData;
 
 	while (p < wordEnd)
 	{
-		const char *r = p;
 		int			lower = 0,
-					upper = qgramTableSize - 1,
-					len = 0;
+					upper = qgramTableSize - 1;
+		bool		first_time = true;
 
 		while (len < maxQ && r < wordEnd)
 		{
-			r += pg_mblen(r);
-			len++;
+			if (!first_time || r <= p)
+			{
+				r += pg_mblen(r);
+				len++;
+			}
+			first_time = false;
 			if (len >= minQ && prefixQGramSearch(p, r - p, &lower, &upper) < 0)
 			{
 				if (prevR && prevP && prevR < r)
@@ -375,6 +386,7 @@ extractMinimalVGramsWord(const char *wordStart, const char *wordEnd, void *userD
 			}
 		}
 		p += pg_mblen(p);
+		len--;
 	}
 	if (prevR && prevP)
 	{
