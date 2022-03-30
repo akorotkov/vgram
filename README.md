@@ -88,7 +88,7 @@ are no longer valid!
 Author
 ------
 
- * Alexander Korotkov <aekorotkov@gmail.com>, Postgres Professional, Moscow, Russia
+ * Alexander Korotkov <aekorotkov@gmail.com>, OrioleDB
 
 Availability
 ------------
