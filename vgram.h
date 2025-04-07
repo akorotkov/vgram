@@ -20,7 +20,7 @@
  */
 #define minQ						(2)
 #define maxQ						(5)
-#define isExtractable(c)			(t_isalpha(c) || t_isdigit(c))
+#define isExtractable(c)			(isalpha((unsigned char) *(c)) || isdigit((unsigned char) *(c)))
 #define VGRAM_LIMIT_RATIO			(0.005)
 #define DEFAULT_CHARACTER_FREQUENCY	(0.001)
 #define EMPTY_CHARACTER				('$')

@@ -12,14 +12,18 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
-#include "fmgr.h"
-#include "mb/pg_wchar.h"
+
 #include "access/hash.h"
-#include "utils/builtins.h"
-#include "utils/memutils.h"
-#include "utils/hsearch.h"
+#include "catalog/pg_collation_d.h"
 #include "catalog/pg_type.h"
 #include "executor/spi.h"
+#include "fmgr.h"
+#include "mb/pg_wchar.h"
+#include "utils/array.h"
+#include "utils/builtins.h"
+#include "utils/formatting.h"
+#include "utils/hsearch.h"
+#include "utils/memutils.h"
 
 #include "vgram.h"
 
@@ -74,12 +78,12 @@ typedef struct
 	int64			count;
 } QGramHashValue;
 
-bool				qgramTableLoaded = false;
-int					qgramTableSize = 0,
+static bool			qgramTableLoaded = false;
+static int			qgramTableSize = 0,
 					characterTableSize = 0;
-QGramTableElement  *qgramTable = NULL,
+static QGramTableElement *qgramTable = NULL,
 				   *characterTable = NULL;
-float4				avgCharactersCount = 0.0f;
+static float4		avgCharactersCount = 0.0f;
 
 /**
  * Search q-grams stat table for given prefix. Initially lower and upper
@@ -434,7 +438,7 @@ extractWords(const char *string, size_t len, WordCallback callback,
 		{
 			if (firstExtractable)
 			{
-				lower = lowerstr_with_len(firstExtractable, p - firstExtractable);
+				lower = str_tolower(firstExtractable, p - firstExtractable, DEFAULT_COLLATION_OID);
 				lowerLen = strlen(lower);
 				memcpy(buf + 1, lower, lowerLen);
 				pfree(lower);
@@ -448,7 +452,7 @@ extractWords(const char *string, size_t len, WordCallback callback,
 	}
 	if (firstExtractable)
 	{
-		lower = lowerstr_with_len(firstExtractable, p - firstExtractable);
+		lower = str_tolower(firstExtractable, p - firstExtractable, DEFAULT_COLLATION_OID);
 		lowerLen = strlen(lower);
 		memcpy(buf + 1, lower, lowerLen);
 		pfree(lower);
@@ -488,15 +492,15 @@ print_qgrams(PG_FUNCTION_ARGS)
 	hash_seq_init(&scanStatus, state.stringQGramsHash);
 	while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
 	{
-		elog(NOTICE, "qgram: %s %ld", item->key.qgram, item->count);
+		elog(NOTICE, "qgram: %s " INT64_FORMAT, item->key.qgram, item->count);
 	}
 
 	hash_seq_init(&scanStatus, state.charactersHash);
 	while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
 	{
-		elog(NOTICE, "character: %s %ld", item->key.qgram, item->count);
+		elog(NOTICE, "character: %s " INT64_FORMAT, item->key.qgram, item->count);
 	}
-	elog(NOTICE, "Total length: %ld", state.totalLength);
+	elog(NOTICE, "Total length: " INT64_FORMAT, state.totalLength);
 
 	PG_RETURN_VOID();
 }

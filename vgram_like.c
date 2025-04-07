@@ -12,8 +12,12 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+
+#include "catalog/pg_collation_d.h"
 #include "fmgr.h"
 #include "utils/builtins.h"
+#include "utils/formatting.h"
+#include "varatt.h"
 
 #include "vgram.h"
 
@@ -207,7 +211,7 @@ extractQueryLike(int32 *nentries, text *pattern)
 	while ((eword = get_wildcard_part(eword, len - (eword - str),
 									  buf, &bytelen, &charlen)) != NULL)
 	{
-		buf2 = lowerstr_with_len(buf, bytelen);
+		buf2 = str_tolower(buf, bytelen, DEFAULT_COLLATION_OID);
 		bytelen = strlen(buf2);
 
 		extractMinimalVGramsWord(buf2, buf2 + bytelen, &userData);
