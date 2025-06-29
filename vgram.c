@@ -11,6 +11,7 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "catalog/pg_type_d.h"
 #include "postgres.h"
 
 #include "access/hash.h"
@@ -40,6 +41,7 @@ PG_FUNCTION_INFO_V1(get_vgrams);
 PG_FUNCTION_INFO_V1(print_qgrams);
 PG_FUNCTION_INFO_V1(qgram_stat_transfn);
 PG_FUNCTION_INFO_V1(qgram_stat_finalfn);
+PG_FUNCTION_INFO_V1(print_qgram_stat);
 PG_FUNCTION_INFO_V1(qgram_stat_reset_cache);
 
 static int	qgramTableElementCmp(const void *a1, const void *a2);
@@ -207,7 +209,7 @@ collectStatsWord(const char *wordStart, const char *wordEnd,
 			if (pos >= q)
 			{
 				size = p - r;
-				qgram = (char *) palloc(size + 1);
+				qgram = (char *) MemoryContextAlloc(state->context, size + 1);
 				qgram[size] = 0;
 				memcpy(qgram, r, size);
 				r += pg_mblen(r);
@@ -311,6 +313,9 @@ estimateVGramSelectivilty(const char *vgram)
 	}
 }
 
+/*
+ * Extract rare-enough vgrams from starting from each position of the word.
+ */
 void
 extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 {
@@ -349,6 +354,9 @@ extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 	}
 }
 
+/*
+ * Extract rare-enough vgrams that don't contain other rare-enough vgrams.
+ */
 void
 extractMinimalVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 {
@@ -535,16 +543,13 @@ get_vgrams(PG_FUNCTION_ARGS)
 	userData.userData = &vgramsInfo;
 	extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), extractMinimalVGramsWord, &userData);
 
-	PG_RETURN_ARRAYTYPE_P(
-						  construct_array(
-										  vgramsInfo.vgrams,
+	PG_RETURN_ARRAYTYPE_P(construct_array(vgramsInfo.vgrams,
 										  vgramsInfo.count,
 										  TEXTOID,
 										  -1,
 										  false,
 										  'i'
-										  )
-		);
+										  ));
 }
 
 static uint32
@@ -671,7 +676,7 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 }
 
 static void
-freeStats()
+freeStats(void)
 {
 	int			i;
 
@@ -796,69 +801,47 @@ Datum
 qgram_stat_finalfn(PG_FUNCTION_ARGS)
 {
 	QGramStatState *state;
-	int				limitCount,
-					spiResult;
+	int				limitCount;
 	HASH_SEQ_STATUS scanStatus;
 	QGramHashValue *item;
-	MemoryContext	oldcontext;
-	SPIPlanPtr		plan;
-	Oid				argTypes[2] = {TEXTOID, FLOAT4OID};
-	Datum			values[2];
+	text		  **qgrams;
+	int				qgramsCount = 0;
+	int				i;
 
 	state = PG_ARGISNULL(0) ? NULL : (QGramStatState *) PG_GETARG_POINTER(0);
 
 	if (!state)
 		PG_RETURN_NULL();
 
-	oldcontext = MemoryContextSwitchTo(state->context);
 	limitCount = (int) (state->totalCount * VGRAM_LIMIT_RATIO);
-
-	SPI_connect();
-	spiResult = SPI_execute("TRUNCATE qgram_stat;", false, 0);
-	if (spiResult != SPI_OK_UTILITY)
-		elog(ERROR, "Error truncating table qgram_stat.");
-	plan = SPI_prepare("INSERT INTO qgram_stat (qgram, frequency) VALUES ($1, $2);", 2, argTypes);
 
 	hash_seq_init(&scanStatus, state->qgramsHash);
 	while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
 	{
 		if (item->count >= limitCount)
-		{
-			values[0] = PointerGetDatum(cstring_to_text(item->key.qgram));
-			values[1] = Float4GetDatum((float) item->count / (float) state->totalCount);
-			spiResult = SPI_execute_plan(plan, values, NULL, false, 0);
-			if (spiResult != SPI_OK_INSERT)
-				elog(ERROR, "Error inserting record into table qgram_stat.");
-		}
+			qgramsCount++;
 	}
 
-	hash_seq_init(&scanStatus, state->charactersHash);
+	qgrams = (text **) palloc(sizeof(text *) * qgramsCount);
+
+	hash_seq_init(&scanStatus, state->qgramsHash);
+	i = 0;
 	while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
 	{
 		if (item->count >= limitCount)
 		{
-			values[0] = PointerGetDatum(cstring_to_text(item->key.qgram));
-			values[1] = Float4GetDatum((float) item->count / (float) state->totalLength);
-			spiResult = SPI_execute_plan(plan, values, NULL, false, 0);
-			if (spiResult != SPI_OK_INSERT)
-				elog(ERROR, "Error inserting record into table qgram_stat.");
+			Assert(i < qgramsCount);
+			qgrams[i] = cstring_to_text(item->key.qgram);
+			i++;
 		}
 	}
 
-	values[1] = Float4GetDatum((float) state->totalLength / (float) state->totalCount);
-	spiResult = SPI_execute_plan(plan, values, "n ", false, 0);
-	if (spiResult != SPI_OK_INSERT)
-		elog(ERROR, "Error inserting record into table qgram_stat.");
-
-	SPI_finish();
-
 	hash_destroy(state->qgramsHash);
 	hash_destroy(state->charactersHash);
-	MemoryContextSwitchTo(oldcontext);
 	MemoryContextDelete(state->tmpContext);
 	MemoryContextDelete(state->context);
 	freeStats();
-	PG_RETURN_NULL();
+	PG_RETURN_ARRAYTYPE_P(construct_array_builtin((Datum *) qgrams, qgramsCount, TEXTOID));
 }
 
 Datum
