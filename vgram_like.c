@@ -182,7 +182,7 @@ addVGram(char *vgram, void *userData)
 
 
 Datum *
-extractQueryLike(int32 *nentries, text *pattern)
+extractQueryLike(VGramOptions *options, int32 *nentries, text *pattern)
 {
 	char	   *buf,
 			   *buf2;
@@ -197,6 +197,7 @@ extractQueryLike(int32 *nentries, text *pattern)
 	Datum	   *entries;
 
 	userData.callback = addVGram;
+	userData.options = options;
 	userData.userData = (void *) &vgrams;
 
 	vgrams.count = 0;

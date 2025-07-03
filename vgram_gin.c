@@ -10,33 +10,33 @@
  *
  *-------------------------------------------------------------------------
  */
+#include "c.h"
 #include "postgres.h"
+
+#include "catalog/pg_type_d.h"
 #include "access/gin.h"
+#include "access/reloptions.h"
 #include "access/skey.h"
 #include "fmgr.h"
+#include "utils/array.h"
 #include "utils/builtins.h"
 
+#include "varatt.h"
 #include "vgram.h"
 
 Datum		vgram_cmp(PG_FUNCTION_ARGS);
+Datum		vgram_gin_extract_value(PG_FUNCTION_ARGS);
+Datum		vgram_gin_consistent(PG_FUNCTION_ARGS);
+Datum		vgram_gin_triconsistent(PG_FUNCTION_ARGS);
+Datum		vgram_gin_extract_query(PG_FUNCTION_ARGS);
+Datum		vgram_gin_options(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(vgram_cmp);
-
-Datum		vgram_gin_extract_value(PG_FUNCTION_ARGS);
-
 PG_FUNCTION_INFO_V1(vgram_gin_extract_value);
-
-Datum		vgram_gin_consistent(PG_FUNCTION_ARGS);
-
 PG_FUNCTION_INFO_V1(vgram_gin_consistent);
-
-Datum		vgram_gin_triconsistent(PG_FUNCTION_ARGS);
-
 PG_FUNCTION_INFO_V1(vgram_gin_triconsistent);
-
-Datum		vgram_gin_extract_query(PG_FUNCTION_ARGS);
-
 PG_FUNCTION_INFO_V1(vgram_gin_extract_query);
+PG_FUNCTION_INFO_V1(vgram_gin_options);
 
 static int
 vgram_cmp_internal(Datum d1, Datum d2)
@@ -50,7 +50,7 @@ vgram_cmp_internal(Datum d1, Datum d2)
 	len1 = VARSIZE_ANY_EXHDR(vgram1);
 	len2 = VARSIZE_ANY_EXHDR(vgram2);
 
-	cmp = strncmp(VARDATA_ANY(vgram1), VARDATA_ANY(vgram2), Min(len1, len2));
+	cmp = memcmp(VARDATA_ANY(vgram1), VARDATA_ANY(vgram2), Min(len1, len2));
 	if (cmp != 0)
 		return cmp;
 	if (len1 < len2)
@@ -61,7 +61,7 @@ vgram_cmp_internal(Datum d1, Datum d2)
 		return 1;
 }
 
-static int
+int
 vgram_sort_cmp(const void *v1, const void *v2)
 {
 	return vgram_cmp_internal(*((Datum *) v1),
@@ -127,16 +127,17 @@ vgram_gin_extract_value(PG_FUNCTION_ARGS)
 {
 	text	   *s = (text *) PG_GETARG_TEXT_PP(0);
 	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
+	VGramOptions *options = (VGramOptions *) PG_GET_OPCLASS_OPTIONS();
+
 	ExtractValueInfo info;
 	ExtractVGramsInfo userData;
-
-	loadStats();
 
 	info.nentries = 0;
 	info.allocatedEntries = 4;
 	info.entries = (Datum *) palloc(sizeof(Datum) * info.allocatedEntries);
 
 	userData.callback = extractVGram;
+	userData.options = options;
 	userData.userData = &info;
 
 	extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), extractMinimalVGramsWord, &userData);
@@ -240,15 +241,15 @@ vgram_gin_extract_query(PG_FUNCTION_ARGS)
 	/* bool   **nullFlags = (bool **) PG_GETARG_POINTER(5); */
 	int32	   *searchMode = (int32 *) PG_GETARG_POINTER(6);
 	Datum	   *entries = NULL;
+	VGramOptions *options = (VGramOptions *) PG_GET_OPCLASS_OPTIONS();
 
-	loadStats();
 
 	switch (strategy)
 	{
 		case ILikeStrategyNumber:
 		case LikeStrategyNumber:
 
-			entries = extractQueryLike(nentries, val);
+			entries = extractQueryLike(options, nentries, val);
 			break;
 		default:
 			elog(ERROR, "unrecognized strategy number: %d", strategy);
@@ -264,4 +265,94 @@ vgram_gin_extract_query(PG_FUNCTION_ARGS)
 		*searchMode = GIN_SEARCH_MODE_ALL;
 
 	PG_RETURN_POINTER(entries);
+}
+
+static void
+vgrams_validator(const char *value)
+{
+	ArrayType *arr;
+	int		nVgrams;
+	Datum  *elems;
+
+	arr = DatumGetArrayTypeP(DirectFunctionCall3(array_in,
+							 CStringGetDatum(value),
+							 ObjectIdGetDatum(TEXTOID),
+							 Int32GetDatum(-1)));
+
+	deconstruct_array(arr, TEXTOID, -1, false, 'i', &elems, NULL, &nVgrams);
+}
+
+Size
+vgrams_fill(ArrayType *arr, void *ptr)
+{
+	int		nVgrams;
+	Datum  *elems;
+	int		i;
+	Size	size = sizeof(int);
+	Pointer p = (Pointer) ptr;
+
+	deconstruct_array(arr, TEXTOID, -1, false, 'i', &elems, NULL, &nVgrams);
+
+	qsort(elems, nVgrams, sizeof(Datum), vgram_sort_cmp);
+
+	size += nVgrams * sizeof(int);
+	if (p)
+		*(int *) p = nVgrams;
+
+	for (i = 0; i < nVgrams; i++)
+	{
+		char   *vgram = VARDATA_ANY(elems[i]);
+		int		vgramSize = VARSIZE_ANY_EXHDR(elems[i]);
+
+		if (p)
+		{
+			*(int *) (p + (i + 1) * sizeof(int)) = (int) size;
+			memcpy(p + size, vgram, vgramSize);
+			*(p + size + vgramSize + 1) = '\0';
+		}
+		size += vgramSize + 1;
+	}
+
+	return size;
+}
+
+static Size
+vgrams_fill_string(const char *value, void *ptr)
+{
+	ArrayType *arr;
+
+	arr = DatumGetArrayTypeP(DirectFunctionCall3(array_in,
+							 CStringGetDatum(value),
+							 ObjectIdGetDatum(TEXTOID),
+							 Int32GetDatum(-1)));
+
+	return vgrams_fill(arr, ptr);
+}
+
+Datum
+vgram_gin_options(PG_FUNCTION_ARGS)
+{
+	local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
+
+	init_local_reloptions(relopts, offsetof(VGramOptions, vgramsCount));
+	add_local_int_reloption(relopts, "minQ",
+							"minimal vgram size",
+							2,
+							1,
+							10,
+							offsetof(VGramOptions, minQ));
+	add_local_int_reloption(relopts, "maxQ",
+							"maximal vgram size",
+							2,
+							1,
+							10,
+							offsetof(VGramOptions, maxQ));
+	add_local_string_reloption(relopts, "vgrams",
+							   "an array of frequent vgrams",
+							   NULL,
+							   vgrams_validator,
+							   vgrams_fill_string,
+							   offsetof(VGramOptions, vgramsOffset));
+
+	PG_RETURN_VOID();
 }

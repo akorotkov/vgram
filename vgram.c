@@ -25,6 +25,7 @@
 #include "utils/formatting.h"
 #include "utils/hsearch.h"
 #include "utils/memutils.h"
+#include <stddef.h>
 
 #include "vgram.h"
 
@@ -34,15 +35,11 @@ Datum		print_qgrams(PG_FUNCTION_ARGS);
 Datum		get_vgrams(PG_FUNCTION_ARGS);
 Datum		qgram_stat_transfn(PG_FUNCTION_ARGS);
 Datum		qgram_stat_finalfn(PG_FUNCTION_ARGS);
-Datum		print_qgram_stat(PG_FUNCTION_ARGS);
-Datum		qgram_stat_reset_cache(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(get_vgrams);
-PG_FUNCTION_INFO_V1(print_qgrams);
+PG_FUNCTION_INFO_V1(print_vgrams);
 PG_FUNCTION_INFO_V1(qgram_stat_transfn);
 PG_FUNCTION_INFO_V1(qgram_stat_finalfn);
-PG_FUNCTION_INFO_V1(print_qgram_stat);
-PG_FUNCTION_INFO_V1(qgram_stat_reset_cache);
 
 static int	qgramTableElementCmp(const void *a1, const void *a2);
 static int	qgram_key_match(const void *key1, const void *key2, Size keysize);
@@ -62,11 +59,13 @@ typedef struct
 {
 	MemoryContext	context,
 					tmpContext;
+	int				minQ,
+					maxQ;
 	HTAB		   *qgramsHash,
-				   *stringQGramsHash,
-				   *charactersHash;
+				   *stringQGramsHash;
 	int64			totalCount,
 					totalLength;
+	float8			threshold;
 } QGramStatState;
 
 typedef struct
@@ -80,13 +79,6 @@ typedef struct
 	int64			count;
 } QGramHashValue;
 
-static bool			qgramTableLoaded = false;
-static int			qgramTableSize = 0,
-					characterTableSize = 0;
-static QGramTableElement *qgramTable = NULL,
-				   *characterTable = NULL;
-static float4		avgCharactersCount = 0.0f;
-
 /**
  * Search q-grams stat table for given prefix. Initially lower and upper
  * bounds should cover all indexes of qgramTable. Resulting lower and upper
@@ -99,7 +91,8 @@ static float4		avgCharactersCount = 0.0f;
  * @return Index of found q-gram
  */
 static int
-prefixQGramSearch(const char *prefix, int len, int *lower, int *upper)
+prefixQGramSearch(VGramOptions *options, const char *prefix,
+				  int len, int *lower, int *upper)
 {
 	int			mid,
 				cmp;
@@ -107,7 +100,7 @@ prefixQGramSearch(const char *prefix, int len, int *lower, int *upper)
 	while (*lower <= *upper)
 	{
 		mid = (*lower + *upper) / 2;
-		cmp = strncmp(qgramTable[mid].qgram, prefix, len);
+		cmp = strncmp(GET_VGRAM(options, mid), prefix, len);
 		if (cmp < 0)
 		{
 			*lower = mid + 1;
@@ -194,7 +187,7 @@ collectStatsWord(const char *wordStart, const char *wordEnd,
 	int				q;
 
 	/* Collect q-grams stat */
-	for (q = minQ; q <= maxQ; q++)
+	for (q = state->minQ; q <= state->maxQ; q++)
 	{
 		char	   *qgram;
 		int			pos = 0,
@@ -219,98 +212,6 @@ collectStatsWord(const char *wordStart, const char *wordEnd,
 		}
 		while (p < wordEnd);
 	}
-
-	/* Collect characters stat */
-	p = wordStart + pg_mblen(wordStart);
-	while (p < wordEnd)
-	{
-		int			len = pg_mblen(p);
-		char	   *character = (char *) MemoryContextAlloc(state->context, len + 1);
-
-		memcpy(character, p, len);
-		character[len] = 0;
-
-		addCharacterToHash(character, state->charactersHash);
-		state->totalLength++;
-
-		p += len;
-	}
-}
-
-static float4
-getCharacterFrequency(const char *c, int len)
-{
-	int			mid,
-				cmp,
-				lower = 0,
-				upper = characterTableSize - 1;
-
-	while (lower <= upper)
-	{
-		mid = (lower + upper) / 2;
-		cmp = strncmp(characterTable[mid].qgram, c, len);
-		if (cmp < 0)
-		{
-			lower = mid + 1;
-		}
-		else if (cmp > 0)
-		{
-			upper = mid - 1;
-		}
-		else
-		{
-			return characterTable[mid].frequency;
-		}
-	}
-	return DEFAULT_CHARACTER_FREQUENCY;
-}
-
-float4
-estimateVGramSelectivilty(const char *vgram)
-{
-	const char *p,
-			   *prev = NULL;
-	int			len = 0;
-
-	p = vgram;
-	while (*p)
-	{
-		prev = p;
-		len++;
-		p += pg_mblen(p);
-	}
-
-	if (len < minQ)
-		elog(ERROR, "Short vgram %s", vgram);
-	else if (len == minQ)
-	{
-		float4		result = 1.0f;
-
-		p = vgram;
-		while (*p)
-		{
-			int		char_len;
-
-			char_len = pg_mblen(p);
-			result *= getCharacterFrequency(p, char_len);
-			p += char_len;
-		}
-
-		return result;
-	}
-	else
-	{
-		int			lower = 0,
-					upper = qgramTableSize - 1,
-					i;
-
-		i = prefixQGramSearch(vgram, prev - vgram, &lower, &upper);
-		if (i < 0)
-			elog(ERROR, "Corrupted vgram %s", vgram);
-
-		return
-			qgramTable[i].frequency * getCharacterFrequency(prev, p - prev);
-	}
 }
 
 /*
@@ -323,11 +224,13 @@ extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 			   *r = wordStart;
 	int			len = 0;
 	ExtractVGramsInfo *info = (ExtractVGramsInfo *) userData;
+	int			minQ = info->options->minQ,
+				maxQ = info->options->maxQ;
 
 	while (p < wordEnd)
 	{
 		int			lower = 0,
-					upper = qgramTableSize - 1;
+					upper = info->options->vgramsCount;
 		bool		first_time = true;
 
 		while (len < maxQ && r < wordEnd)
@@ -338,7 +241,7 @@ extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 				len++;
 			}
 			first_time = false;
-			if (len >= minQ && prefixQGramSearch(p, r - p, &lower, &upper) < 0)
+			if (len >= minQ && prefixQGramSearch(info->options, p, r - p, &lower, &upper) < 0)
 			{
 				char	   *qgram;
 
@@ -366,11 +269,13 @@ extractMinimalVGramsWord(const char *wordStart, const char *wordEnd, void *userD
 			   *prevP = NULL;
 	int			len = 0;
 	ExtractVGramsInfo *info = (ExtractVGramsInfo *) userData;
+	int			minQ = info->options->minQ,
+				maxQ = info->options->maxQ;
 
 	while (p < wordEnd)
 	{
 		int			lower = 0,
-					upper = qgramTableSize - 1;
+					upper = info->options->vgramsCount;
 		bool		first_time = true;
 
 		while (len < maxQ && r < wordEnd)
@@ -381,7 +286,7 @@ extractMinimalVGramsWord(const char *wordStart, const char *wordEnd, void *userD
 				len++;
 			}
 			first_time = false;
-			if (len >= minQ && prefixQGramSearch(p, r - p, &lower, &upper) < 0)
+			if (len >= minQ && prefixQGramSearch(info->options, p, r - p, &lower, &upper) < 0)
 			{
 				if (prevR && prevP && prevR < r)
 				{
@@ -472,7 +377,7 @@ extractWords(const char *string, size_t len, WordCallback callback,
 }
 
 Datum
-print_qgrams(PG_FUNCTION_ARGS)
+print_vgrams(PG_FUNCTION_ARGS)
 {
 	QGramStatState state;
 	text	   *s = PG_GETARG_TEXT_PP(0);
@@ -480,6 +385,8 @@ print_qgrams(PG_FUNCTION_ARGS)
 	HASHCTL		qgramsHashCtl;
 	QGramHashValue *item;
 
+	state.minQ = PG_GETARG_INT32(1);
+	state.maxQ = PG_GETARG_INT32(2);
 	state.totalLength = 0;
 	qgramsHashCtl.keysize = sizeof(QGramHashKey);
 	qgramsHashCtl.entrysize = sizeof(QGramHashValue);
@@ -488,11 +395,7 @@ print_qgrams(PG_FUNCTION_ARGS)
 	state.stringQGramsHash = hash_create("string qgrams hash",
 										 1024,
 										 &qgramsHashCtl,
-								   HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
-	state.charactersHash = hash_create("characters qgrams hash",
-									   1024,
-									   &qgramsHashCtl,
-								   HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
+										 HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
 	state.context = CurrentMemoryContext;
 
 	extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), collectStatsWord, &state);
@@ -501,12 +404,6 @@ print_qgrams(PG_FUNCTION_ARGS)
 	while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
 	{
 		elog(NOTICE, "qgram: %s " INT64_FORMAT, item->key.qgram, item->count);
-	}
-
-	hash_seq_init(&scanStatus, state.charactersHash);
-	while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
-	{
-		elog(NOTICE, "character: %s " INT64_FORMAT, item->key.qgram, item->count);
 	}
 	elog(NOTICE, "Total length: " INT64_FORMAT, state.totalLength);
 
@@ -524,22 +421,40 @@ addVGram(char *vgram, void *userData)
 {
 	VGramsInfo *vgramsInfo = (VGramsInfo *) userData;
 
-	elog(NOTICE, "%s - %f", vgram, estimateVGramSelectivilty(vgram));
 	vgramsInfo->vgrams[vgramsInfo->count++] = PointerGetDatum(cstring_to_text(vgram));
+}
+
+static VGramOptions *
+makeOptions(int minQ, int maxQ, ArrayType *vgrams)
+{
+	Size		size;
+	VGramOptions *options;
+
+	size = vgrams_fill(vgrams, NULL);
+	options = (VGramOptions *) palloc(offsetof(VGramOptions, vgramsOffset) + size);
+	options->minQ = minQ;
+	options->maxQ = maxQ;
+	(void) vgrams_fill(vgrams, &options->vgramsOffset);
+
+	return options;
 }
 
 Datum
 get_vgrams(PG_FUNCTION_ARGS)
 {
 	text	   *s = PG_GETARG_TEXT_PP(0);
+	int			minQ = PG_GETARG_INT32(1);
+	int			maxQ = PG_GETARG_INT32(2);
+	ArrayType  *vgrams = PG_GETARG_ARRAYTYPE_P(3);
 	ExtractVGramsInfo userData;
+	VGramOptions *options = makeOptions(minQ, maxQ, vgrams);
 	VGramsInfo	vgramsInfo;
 
 	vgramsInfo.vgrams = (Datum *) palloc(sizeof(Datum) * VARSIZE_ANY_EXHDR(s) *(maxQ - minQ + 1));
 	vgramsInfo.count = 0;
 
-	loadStats();
 	userData.callback = addVGram;
+	userData.options = options;
 	userData.userData = &vgramsInfo;
 	extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), extractMinimalVGramsWord, &userData);
 
@@ -601,6 +516,9 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 										ALLOCSET_DEFAULT_INITSIZE,
 										ALLOCSET_DEFAULT_MAXSIZE);
 		state = (QGramStatState *) MemoryContextAllocZero(context, sizeof(QGramStatState));
+		state->minQ = PG_GETARG_INT32(2);
+		state->maxQ = PG_GETARG_INT32(3);
+		state->threshold = PG_GETARG_FLOAT8(4);
 		state->tmpContext = AllocSetContextCreate(aggcontext,
 												  "qgram_stat result",
 												  ALLOCSET_DEFAULT_MINSIZE,
@@ -619,11 +537,6 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 										&qgramsHashCtl,
 										HASH_ELEM | HASH_CONTEXT
 										| HASH_FUNCTION | HASH_COMPARE);
-		state->charactersHash = hash_create("letters hash",
-											1024,
-											&qgramsHashCtl,
-											HASH_ELEM | HASH_CONTEXT
-											| HASH_FUNCTION | HASH_COMPARE);
 
 	}
 	else
@@ -675,119 +588,6 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(state);
 }
 
-static void
-freeStats(void)
-{
-	int			i;
-
-	if (qgramTable)
-	{
-		for (i = 0; i < qgramTableSize; i++)
-			pfree(qgramTable[i].qgram);
-		pfree(qgramTable);
-	}
-	if (characterTable)
-	{
-		for (i = 0; i < characterTableSize; i++)
-			pfree(characterTable[i].qgram);
-		pfree(characterTable);
-	}
-	qgramTableLoaded = false;
-	qgramTable = NULL;
-	qgramTableSize = 0;
-	characterTable = NULL;
-	characterTableSize = 0;
-}
-
-Datum
-qgram_stat_reset_cache(PG_FUNCTION_ARGS)
-{
-	freeStats();
-	PG_RETURN_VOID();
-}
-
-static void
-loadTable(char *query, QGramTableElement ** table, int *size)
-{
-	int			result,
-				i;
-
-	result = SPI_execute(query, true, 0);
-
-	if (result != SPI_OK_SELECT)
-		elog(ERROR, "Can't read table qgram_stat;");
-	if (SPI_tuptable->tupdesc->natts != 2)
-		elog(ERROR, "qgram_stat table must have 2 columns.");
-	if (SPI_gettypeid(SPI_tuptable->tupdesc, 1) != TEXTOID)
-		elog(ERROR, "1st column of qgram_stat table must be text.");
-	if (SPI_gettypeid(SPI_tuptable->tupdesc, 2) != FLOAT4OID)
-		elog(ERROR, "2nd column of qgram_stat table must be float4.");
-
-	if (SPI_processed == 0)
-	{
-		*table = NULL;
-		*size = 0;
-		return;
-	}
-
-	*table = MemoryContextAlloc(TopMemoryContext, sizeof(QGramTableElement) * SPI_processed);
-	for (i = 0; i < SPI_processed; i++)
-	{
-		bool		isnullfreq,
-					isnullqgram;
-		text	   *qgram;
-		MemoryContext oldContext;
-
-		qgram = DatumGetTextP(SPI_getbinval(SPI_tuptable->vals[i], SPI_tuptable->tupdesc, 1, &isnullqgram));
-		if (isnullqgram)
-			elog(ERROR, "qgram value must be not null.");
-
-		oldContext = MemoryContextSwitchTo(TopMemoryContext);
-		(*table)[i].qgram = text_to_cstring(qgram);
-		MemoryContextSwitchTo(oldContext);
-		(*table)[i].frequency = DatumGetFloat4(SPI_getbinval(SPI_tuptable->vals[i], SPI_tuptable->tupdesc, 2, &isnullfreq));
-		if (isnullfreq)
-			elog(ERROR, "qgram value must be not null.");
-	}
-	*size = SPI_processed;
-
-	qsort(*table, *size, sizeof(QGramTableElement), qgramTableElementCmp);
-}
-
-void
-loadStats(void)
-{
-	int			result;
-	bool		isnull;
-
-	if (qgramTableLoaded)
-		return;
-
-	SPI_connect();
-
-	loadTable("SELECT * FROM qgram_stat WHERE length(qgram) > 1;",
-			  &qgramTable, &qgramTableSize);
-	loadTable("SELECT * FROM qgram_stat WHERE length(qgram) = 1;",
-			  &characterTable, &characterTableSize);
-
-	result = SPI_execute("SELECT frequency FROM qgram_stat WHERE qgram IS NULL", true, 0);
-
-	if (result != SPI_OK_SELECT)
-		elog(ERROR, "Can't read table qgram_stat;");
-	if (SPI_tuptable->tupdesc->natts != 1 ||
-		SPI_gettypeid(SPI_tuptable->tupdesc, 1) != FLOAT4OID)
-		elog(ERROR, "frequency column of qgram_stat table must be float4.");
-
-	if (SPI_processed == 0)
-		avgCharactersCount = 25.0f;
-
-	avgCharactersCount = DatumGetFloat4(SPI_getbinval(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1, &isnull));
-
-	SPI_finish();
-
-	qgramTableLoaded = true;
-}
-
 static int
 qgramTableElementCmp(const void *a1, const void *a2)
 {
@@ -804,7 +604,7 @@ qgram_stat_finalfn(PG_FUNCTION_ARGS)
 	int				limitCount;
 	HASH_SEQ_STATUS scanStatus;
 	QGramHashValue *item;
-	text		  **qgrams;
+	Datum		   *qgrams;
 	int				qgramsCount = 0;
 	int				i;
 
@@ -813,7 +613,7 @@ qgram_stat_finalfn(PG_FUNCTION_ARGS)
 	if (!state)
 		PG_RETURN_NULL();
 
-	limitCount = (int) (state->totalCount * VGRAM_LIMIT_RATIO);
+	limitCount = (int) (state->totalCount * state->threshold);
 
 	hash_seq_init(&scanStatus, state->qgramsHash);
 	while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
@@ -822,7 +622,7 @@ qgram_stat_finalfn(PG_FUNCTION_ARGS)
 			qgramsCount++;
 	}
 
-	qgrams = (text **) palloc(sizeof(text *) * qgramsCount);
+	qgrams = (Datum *) palloc(sizeof(Datum) * qgramsCount);
 
 	hash_seq_init(&scanStatus, state->qgramsHash);
 	i = 0;
@@ -831,30 +631,16 @@ qgram_stat_finalfn(PG_FUNCTION_ARGS)
 		if (item->count >= limitCount)
 		{
 			Assert(i < qgramsCount);
-			qgrams[i] = cstring_to_text(item->key.qgram);
+			qgrams[i] = PointerGetDatum(cstring_to_text(item->key.qgram));
 			i++;
 		}
 	}
+	Assert(i == qgramsCount);
+
+	qsort(qgrams, sizeof(text *), qgramsCount, vgram_sort_cmp);
 
 	hash_destroy(state->qgramsHash);
-	hash_destroy(state->charactersHash);
 	MemoryContextDelete(state->tmpContext);
 	MemoryContextDelete(state->context);
-	freeStats();
-	PG_RETURN_ARRAYTYPE_P(construct_array_builtin((Datum *) qgrams, qgramsCount, TEXTOID));
-}
-
-Datum
-print_qgram_stat(PG_FUNCTION_ARGS)
-{
-	int			i;
-
-	loadStats();
-
-	for (i = 0; i < qgramTableSize; i++)
-		elog(NOTICE, "qgram %s, %f", qgramTable[i].qgram, qgramTable[i].frequency);
-	for (i = 0; i < characterTableSize; i++)
-		elog(NOTICE, "character %s, %f", characterTable[i].qgram, characterTable[i].frequency);
-	elog(NOTICE, "average characters %f", avgCharactersCount);
-	PG_RETURN_VOID();
+	PG_RETURN_ARRAYTYPE_P(construct_array_builtin(qgrams, qgramsCount, TEXTOID));
 }
