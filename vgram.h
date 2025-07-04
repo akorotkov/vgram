@@ -14,6 +14,7 @@
 #define _V_GRAM_H_
 
 #include "tsearch/ts_locale.h"
+#include "utils/array.h"
 
 /*
  * V-gram parameters
@@ -29,6 +30,7 @@
 
 typedef struct
 {
+	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	int		minQ;
 	int		maxQ;
 	int		vgramsOffset;

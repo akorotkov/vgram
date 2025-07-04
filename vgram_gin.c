@@ -20,6 +20,7 @@
 #include "fmgr.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/fmgroids.h"
 
 #include "varatt.h"
 #include "vgram.h"
@@ -273,8 +274,13 @@ vgrams_validator(const char *value)
 	ArrayType *arr;
 	int		nVgrams;
 	Datum  *elems;
+	FmgrInfo finfo;
 
-	arr = DatumGetArrayTypeP(DirectFunctionCall3(array_in,
+	if (value == NULL)
+		return;
+
+	fmgr_info(F_ARRAY_IN, &finfo);
+	arr = DatumGetArrayTypeP(FunctionCall3(&finfo,
 							 CStringGetDatum(value),
 							 ObjectIdGetDatum(TEXTOID),
 							 Int32GetDatum(-1)));
@@ -308,7 +314,7 @@ vgrams_fill(ArrayType *arr, void *ptr)
 		{
 			*(int *) (p + (i + 1) * sizeof(int)) = (int) size;
 			memcpy(p + size, vgram, vgramSize);
-			*(p + size + vgramSize + 1) = '\0';
+			*(p + size + vgramSize) = '\0';
 		}
 		size += vgramSize + 1;
 	}
@@ -320,8 +326,17 @@ static Size
 vgrams_fill_string(const char *value, void *ptr)
 {
 	ArrayType *arr;
+	FmgrInfo finfo;
 
-	arr = DatumGetArrayTypeP(DirectFunctionCall3(array_in,
+	if (value == NULL)
+	{
+		if (ptr)
+			*(int *) ptr = 0;
+		return 0;
+	}
+
+	fmgr_info(F_ARRAY_IN, &finfo);
+	arr = DatumGetArrayTypeP(FunctionCall3(&finfo,
 							 CStringGetDatum(value),
 							 ObjectIdGetDatum(TEXTOID),
 							 Int32GetDatum(-1)));
@@ -335,15 +350,15 @@ vgram_gin_options(PG_FUNCTION_ARGS)
 	local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
 	init_local_reloptions(relopts, offsetof(VGramOptions, vgramsCount));
-	add_local_int_reloption(relopts, "minQ",
+	add_local_int_reloption(relopts, "minq",
 							"minimal vgram size",
 							2,
 							1,
 							10,
 							offsetof(VGramOptions, minQ));
-	add_local_int_reloption(relopts, "maxQ",
+	add_local_int_reloption(relopts, "maxq",
 							"maximal vgram size",
-							2,
+							5,
 							1,
 							10,
 							offsetof(VGramOptions, maxQ));

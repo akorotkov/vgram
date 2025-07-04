@@ -12,17 +12,17 @@ RETURNS void
 AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
-CREATE FUNCTION get_vgrams(text)
+CREATE FUNCTION get_vgrams(s text, min_q int, max_q int, vgrams text[])
 RETURNS text[]
 AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
-CREATE OR REPLACE FUNCTION qgram_stat_transfn(internal, text)
+CREATE OR REPLACE FUNCTION qgram_stat_transfn(state internal, s text, min_q int, max_q int, threshold float8)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE;
 
-CREATE OR REPLACE FUNCTION qgram_stat_finalfn(internal)
+CREATE OR REPLACE FUNCTION qgram_stat_finalfn(state internal)
 RETURNS text[]
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE;

@@ -41,7 +41,6 @@ PG_FUNCTION_INFO_V1(print_vgrams);
 PG_FUNCTION_INFO_V1(qgram_stat_transfn);
 PG_FUNCTION_INFO_V1(qgram_stat_finalfn);
 
-static int	qgramTableElementCmp(const void *a1, const void *a2);
 static int	qgram_key_match(const void *key1, const void *key2, Size keysize);
 static uint32 qgram_key_hash(const void *key, Size keysize);
 static void addVGram(char *vgram, void *userData);
@@ -142,35 +141,6 @@ addQGramToHash(char *qgram, HTAB *qgramsHash)
 }
 
 /**
- * Adds given character to hash
- *
- * @param qgram
- * @param qgramsHash
- */
-static void
-addCharacterToHash(char *character, HTAB *charactersHash)
-{
-	QGramHashKey key;
-	QGramHashValue *value;
-	bool		found;
-
-	key.qgram = character;
-	value = (QGramHashValue *) hash_search(charactersHash,
-										   (const void *) &key,
-										   HASH_ENTER,
-										   &found);
-	if (!found)
-	{
-		value->count = 1;
-	}
-	else
-	{
-		value->count++;
-		pfree(character);
-	}
-}
-
-/**
  * Collect statistics from distinct word.
  *
  * @param wordStart Pointer to the first character of the word.
@@ -230,7 +200,7 @@ extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 	while (p < wordEnd)
 	{
 		int			lower = 0,
-					upper = info->options->vgramsCount;
+					upper = info->options->vgramsCount - 1;
 		bool		first_time = true;
 
 		while (len < maxQ && r < wordEnd)
@@ -431,10 +401,11 @@ makeOptions(int minQ, int maxQ, ArrayType *vgrams)
 	VGramOptions *options;
 
 	size = vgrams_fill(vgrams, NULL);
-	options = (VGramOptions *) palloc(offsetof(VGramOptions, vgramsOffset) + size);
+	options = (VGramOptions *) palloc(offsetof(VGramOptions, vgramsCount) + size);
 	options->minQ = minQ;
 	options->maxQ = maxQ;
-	(void) vgrams_fill(vgrams, &options->vgramsOffset);
+	options->vgramsOffset = offsetof(VGramOptions, vgramsCount);
+	(void) vgrams_fill(vgrams, &options->vgramsCount);
 
 	return options;
 }
@@ -588,15 +559,6 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(state);
 }
 
-static int
-qgramTableElementCmp(const void *a1, const void *a2)
-{
-	const QGramTableElement *e1 = (const QGramTableElement *) a1;
-	const QGramTableElement *e2 = (const QGramTableElement *) a2;
-
-	return strcmp(e1->qgram, e2->qgram);
-}
-
 Datum
 qgram_stat_finalfn(PG_FUNCTION_ARGS)
 {
@@ -637,7 +599,7 @@ qgram_stat_finalfn(PG_FUNCTION_ARGS)
 	}
 	Assert(i == qgramsCount);
 
-	qsort(qgrams, sizeof(text *), qgramsCount, vgram_sort_cmp);
+	qsort(qgrams, qgramsCount, sizeof(Datum), vgram_sort_cmp);
 
 	hash_destroy(state->qgramsHash);
 	MemoryContextDelete(state->tmpContext);
