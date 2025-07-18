@@ -332,7 +332,7 @@ vgrams_fill_string(const char *value, void *ptr)
 	{
 		if (ptr)
 			*(int *) ptr = 0;
-		return 0;
+		return sizeof(int);
 	}
 
 	fmgr_info(F_ARRAY_IN, &finfo);
@@ -342,6 +342,17 @@ vgrams_fill_string(const char *value, void *ptr)
 							 Int32GetDatum(-1)));
 
 	return vgrams_fill(arr, ptr);
+}
+
+static void
+gin_relopts_validator(void *parsed_options, relopt_value *vals, int nvals)
+{
+	VGramOptions   *options = (VGramOptions *) parsed_options;
+
+	if (options->minQ > options->maxQ)
+					ereport(ERROR,
+							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+							 errmsg("\"minq\" can't be greater than \"maxq\"")));
 }
 
 Datum
@@ -354,13 +365,13 @@ vgram_gin_options(PG_FUNCTION_ARGS)
 							"minimal vgram size",
 							2,
 							1,
-							10,
+							MAX_Q_LIMIT,
 							offsetof(VGramOptions, minQ));
 	add_local_int_reloption(relopts, "maxq",
 							"maximal vgram size",
 							5,
 							1,
-							10,
+							MAX_Q_LIMIT,
 							offsetof(VGramOptions, maxQ));
 	add_local_string_reloption(relopts, "vgrams",
 							   "an array of frequent vgrams",
@@ -368,6 +379,7 @@ vgram_gin_options(PG_FUNCTION_ARGS)
 							   vgrams_validator,
 							   vgrams_fill_string,
 							   offsetof(VGramOptions, vgramsOffset));
+	register_reloptions_validator(relopts, gin_relopts_validator);
 
 	PG_RETURN_VOID();
 }

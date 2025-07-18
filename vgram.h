@@ -22,6 +22,7 @@
 #define isExtractable(c)			(isalpha((unsigned char) *(c)) || isdigit((unsigned char) *(c)))
 /*#define VGRAM_LIMIT_RATIO			(0.005)
 #define DEFAULT_CHARACTER_FREQUENCY	(0.001)*/
+#define MAX_Q_LIMIT					(10)
 #define EMPTY_CHARACTER				('$')
 
 /* strategy numbers */
