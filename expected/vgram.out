@@ -1,47 +1,32 @@
 CREATE EXTENSION vgram;
 CREATE TABLE titles (s text);
 \copy titles from 'data/titles.data'
-SELECT qgram_stat(s) FROM titles;
- qgram_stat 
-------------
-           
+SELECT qgram_stat(s, 2, 4, 0.05) AS vgrams FROM titles;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             vgrams                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ {$a,$a$,$an,$and,$ap,$app,$b,$ba,$bas,$c,$co,$com,$con,$d,$de,$di,$e,$f,$fo,$for,$g,$h,$ho,$hom,$i,$in,$in$,$int,$l,$m,$ma,$me,$mo,$mod,$n,$ne,$net,$o,$of,$of$,$on,$on$,$p,$pa,$pag,$pr,$pro,$r,$re,$s,$se,$st,$sy,$sys,$t,$te,$th,$the,$to,$to$,$tr,$u,$us,$v,$w,$wi,$wit,a$,ab,ac,act,ad,ag,age,age$,al,al$,am,an,an$,ana,and,and$,ap,app,ar,as,ase,ased,at,ate,ati,atio,ba,bas,base,bi,bl,c$,ca,cal,cat,cati,ce,ce$,ces,ch,ci,co,com,comp,con,ct,cti,ctio,cu,d$,da,de,del,di,du,e$,ea,ec,ect,ed,ed$,ee,el,el$,em,eme,en,ent,ent$,er,er$,era,eri,es,es$,ess,et,etw,ev,ex,f$,fe,fi,fo,for,for$,form,g$,ge,ge$,gen,gi,gn,gr,gra,h$,ha,he,he$,hi,ho,hom,home,ia,ic,ic$,ica,icat,id,ie,if,ig,il,im,in,in$,ine,ing,ing$,int,inte,io,ion,ion$,ions,ir,is,ist,it,ith,iti,ity,ity$,iv,ive,ive$,iz,k$,l$,la,le,le$,li,lin,ll,lo,lt,lu,ly,m$,ma,man,mat,mati,me,me$,men,ment,mi,mo,mod,mode,mp,ms,ms$,mu,mul,n$,na,nal,nc,nce,nce$,nd,nd$,ne,net,ng,ng$,ni,no,ns,ns$,nt,nt$,nte,o$,ob,oc,od,ode,odel,of,of$,og,ol,om,ome,ome$,omp,on,on$,ons,ons$,op,or,or$,ori,ork,orm,orma,os,ot,ou,pa,pag,page,pe,per,pl,po,pp,pr,pro,pt,qu,r$,ra,ral,rat,rc,re,re$,res,ri,rit,rk,rm,rma,ro,rs,rt,ry,s$,sc,se,sed,sed$,si,sin,sing,so,sp,ss,st,ste,stem,str,su,sy,sys,syst,t$,ta,tat,te,ted,ted$,tem,ter,th,th$,the,the$,ti,tic,tim,tin,ting,tio,tion,tiv,tive,to,to$,tor,tr,tra,tri,ts,ts$,tu,tur,tw,two,ty,ty$,ua,uc,ue,ul,ult,un,ur,ure,us,usi,usin,ut,va,ve,ve$,ver,vi,wi,wit,with,wo,wor,work,y$,ys,yst,yste}
 (1 row)
 
-SELECT qgram_stat_reset_cache();
- qgram_stat_reset_cache 
-------------------------
- 
+\gset
+SELECT get_vgrams('indexing', 2, 4, :'vgrams');
+    get_vgrams    
+------------------
+ {ind,nde,dex,xi}
 (1 row)
 
-SELECT get_vgrams('indexing');
-NOTICE:  dex - 0.000040
-NOTICE:  xin - 0.000495
- get_vgrams 
-------------
- {dex,xin}
+SELECT get_vgrams('annotation', 2, 4, :'vgrams');
+    get_vgrams     
+-------------------
+ {nn,not,ota,tati}
 (1 row)
 
-SELECT get_vgrams('annotation');
-NOTICE:  $ann - 0.009755
-NOTICE:  nno - 0.002169
-NOTICE:  nota - 0.000690
-NOTICE:  otat - 0.000323
-      get_vgrams      
-----------------------
- {$ann,nno,nota,otat}
+SELECT get_vgrams('i like it', 2, 4, :'vgrams');
+       get_vgrams        
+-------------------------
+ {$i$,$li,ik,ke,$it,it$}
 (1 row)
 
-SELECT get_vgrams('i like it');
-NOTICE:  lik - 0.000170
-NOTICE:  ike - 0.000553
-NOTICE:  ke$ - 0.000698
-NOTICE:  $it$ - 0.001668
-     get_vgrams     
---------------------
- {lik,ike,ke$,$it$}
-(1 row)
-
-CREATE INDEX titles_s_idx ON titles USING gin (s vgram_gin_ops);
+CREATE INDEX titles_s_idx ON titles USING gin (s vgram_gin_ops (minq=2, maxq=2, vgrams=:'vgrams'));
 SET enable_seqscan = ON;
 SET enable_bitmapscan = OFF;
 SELECT * FROM titles WHERE s ilike '%indexing%';

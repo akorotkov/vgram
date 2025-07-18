@@ -4,15 +4,14 @@ CREATE TABLE titles (s text);
 
 \copy titles from 'data/titles.data'
 
-SELECT qgram_stat(s) FROM titles;
+SELECT qgram_stat(s, 2, 4, 0.05) AS vgrams FROM titles;
+\gset
 
-SELECT qgram_stat_reset_cache();
+SELECT get_vgrams('indexing', 2, 4, :'vgrams');
+SELECT get_vgrams('annotation', 2, 4, :'vgrams');
+SELECT get_vgrams('i like it', 2, 4, :'vgrams');
 
-SELECT get_vgrams('indexing');
-SELECT get_vgrams('annotation');
-SELECT get_vgrams('i like it');
-
-CREATE INDEX titles_s_idx ON titles USING gin (s vgram_gin_ops);
+CREATE INDEX titles_s_idx ON titles USING gin (s vgram_gin_ops (minq=2, maxq=2, vgrams=:'vgrams'));
 
 SET enable_seqscan = ON;
 SET enable_bitmapscan = OFF;
