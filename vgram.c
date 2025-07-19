@@ -56,15 +56,14 @@ typedef struct
  */
 typedef struct
 {
-	MemoryContext	context,
-					tmpContext;
+	MemoryContext	context;
 	int				minQ,
 					maxQ;
-	HTAB		   *qgramsHash,
-				   *stringQGramsHash;
+	HTAB		   *qgramsHash;
 	int64			totalCount,
 					totalLength;
 	float8			threshold;
+	List		   *incrementedQGrams;
 } QGramStatState;
 
 typedef struct
@@ -76,6 +75,7 @@ typedef struct
 {
 	QGramHashKey	key;
 	int64			count;
+	bool			incremented;
 } QGramHashValue;
 
 /**
@@ -123,21 +123,32 @@ prefixQGramSearch(VGramOptions *options, const char *prefix,
  * @param qgramsHash
  */
 static void
-addQGramToHash(char *qgram, HTAB *qgramsHash)
+addQGramToHash(char *qgram, QGramStatState *state)
 {
 	QGramHashKey key;
 	QGramHashValue *value;
 	bool		found;
 
 	key.qgram = qgram;
-	value = (QGramHashValue *) hash_search(qgramsHash,
+	value = (QGramHashValue *) hash_search(state->qgramsHash,
 										   (const void *) &key,
 										   HASH_ENTER,
 										   &found);
 	if (!found)
+	{
 		value->count = 1;
+		state->incrementedQGrams = lappend(state->incrementedQGrams, qgram);
+	}
 	else
-		value->count++;
+	{
+		if (!value->incremented)
+		{
+			value->count++;
+			state->incrementedQGrams = lappend(state->incrementedQGrams, value->key.qgram);
+		}
+		pfree(qgram);
+	}
+	value->incremented = true;
 }
 
 /**
@@ -177,7 +188,7 @@ collectStatsWord(const char *wordStart, const char *wordEnd,
 				memcpy(qgram, r, size);
 				r += pg_mblen(r);
 
-				addQGramToHash(qgram, state->stringQGramsHash);
+				addQGramToHash(qgram, state);
 			}
 		}
 		while (p < wordEnd);
@@ -362,15 +373,15 @@ print_vgrams(PG_FUNCTION_ARGS)
 	qgramsHashCtl.entrysize = sizeof(QGramHashValue);
 	qgramsHashCtl.hash = qgram_key_hash;
 	qgramsHashCtl.match = qgram_key_match;
-	state.stringQGramsHash = hash_create("string qgrams hash",
-										 1024,
-										 &qgramsHashCtl,
-										 HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
+	state.qgramsHash = hash_create("string qgrams hash",
+									1024,
+									&qgramsHashCtl,
+									HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
 	state.context = CurrentMemoryContext;
 
 	extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), collectStatsWord, &state);
 
-	hash_seq_init(&scanStatus, state.stringQGramsHash);
+	hash_seq_init(&scanStatus, state.qgramsHash);
 	while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
 	{
 		elog(NOTICE, "qgram: %s " INT64_FORMAT, item->key.qgram, item->count);
@@ -463,15 +474,12 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 	MemoryContext	oldcontext;
 	QGramStatState *state;
 	HASHCTL			qgramsHashCtl;
-	HASH_SEQ_STATUS	scanStatus;
-	QGramHashValue *item;
 
 	state = PG_ARGISNULL(0) ? NULL : (QGramStatState *) PG_GETARG_POINTER(0);
 
 	if (state == NULL)
 	{
-		MemoryContext context,
-					aggcontext;
+		MemoryContext aggcontext;
 
 		/* First time through --- initialize */
 		if (!AggCheckCallContext(fcinfo, &aggcontext))
@@ -480,23 +488,13 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 			elog(ERROR, "array_agg_transfn called in non-aggregate context");
 		}
 
-		/* Make a temporary context to hold all the junk */
-		context = AllocSetContextCreate(aggcontext,
-										"qgram_stat result",
-										ALLOCSET_DEFAULT_MINSIZE,
-										ALLOCSET_DEFAULT_INITSIZE,
-										ALLOCSET_DEFAULT_MAXSIZE);
-		state = (QGramStatState *) MemoryContextAllocZero(context, sizeof(QGramStatState));
+		state = (QGramStatState *) MemoryContextAllocZero(aggcontext, sizeof(QGramStatState));
 		state->minQ = PG_GETARG_INT32(2);
 		state->maxQ = PG_GETARG_INT32(3);
 		state->threshold = PG_GETARG_FLOAT8(4);
-		state->tmpContext = AllocSetContextCreate(aggcontext,
-												  "qgram_stat result",
-												  ALLOCSET_DEFAULT_MINSIZE,
-												  ALLOCSET_DEFAULT_INITSIZE,
-												  ALLOCSET_DEFAULT_MAXSIZE);
-		state->context = context;
-		oldcontext = MemoryContextSwitchTo(state->tmpContext);
+		state->context = aggcontext;
+		state->incrementedQGrams = NIL;
+		oldcontext = MemoryContextSwitchTo(state->context);
 
 		qgramsHashCtl.keysize = sizeof(QGramHashKey);
 		qgramsHashCtl.entrysize = sizeof(QGramHashValue);
@@ -512,7 +510,7 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 	}
 	else
 	{
-		oldcontext = MemoryContextSwitchTo(state->tmpContext);
+		oldcontext = MemoryContextSwitchTo(state->context);
 		state->totalCount++;
 	}
 
@@ -520,38 +518,25 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 	{
 		text	   *s = PG_GETARG_TEXT_PP(1);
 
-		qgramsHashCtl.keysize = sizeof(QGramHashKey);
-		qgramsHashCtl.entrysize = sizeof(QGramHashValue);
-		qgramsHashCtl.hcxt = state->tmpContext;
-		qgramsHashCtl.hash = qgram_key_hash;
-		qgramsHashCtl.match = qgram_key_match;
-		state->stringQGramsHash = hash_create("string qgrams hash",
-											  1024,
-											  &qgramsHashCtl,
-											  HASH_ELEM | HASH_CONTEXT
-											  | HASH_FUNCTION | HASH_COMPARE);
-
 		extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), collectStatsWord, state);
-		hash_seq_init(&scanStatus, state->stringQGramsHash);
-		while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
-		{
-			bool		found;
-			QGramHashValue *value;
 
+		foreach_ptr(char, qgram, state->incrementedQGrams)
+		{
+			QGramHashKey key;
+			QGramHashValue *value;
+			bool		found;
+
+			key.qgram = qgram;
 			value = (QGramHashValue *) hash_search(state->qgramsHash,
-												   (const void *) &item->key,
-												   HASH_ENTER,
+												   (const void *) &key,
+												   HASH_FIND,
 												   &found);
-			if (!found)
-			{
-				value->key.qgram = MemoryContextStrdup(state->context, value->key.qgram);
-				value->count = 1;
-			}
-			else
-				value->count++;
+			Assert(value && found);
+			value->incremented = false;
 		}
-		hash_destroy(state->stringQGramsHash);
-		MemoryContextReset(state->tmpContext);
+
+		list_free(state->incrementedQGrams);
+		state->incrementedQGrams = NIL;
 	}
 
 
@@ -602,7 +587,5 @@ qgram_stat_finalfn(PG_FUNCTION_ARGS)
 	qsort(qgrams, qgramsCount, sizeof(Datum), vgram_sort_cmp);
 
 	hash_destroy(state->qgramsHash);
-	MemoryContextDelete(state->tmpContext);
-	MemoryContextDelete(state->context);
 	PG_RETURN_ARRAYTYPE_P(construct_array_builtin(qgrams, qgramsCount, TEXTOID));
 }
