@@ -111,3 +111,34 @@ CREATE TYPE vgram_text (
 );
 
 CREATE CAST (vgram_text AS text) WITHOUT FUNCTION AS IMPLICIT;
+
+CREATE FUNCTION vgram_text_like(vgram_text, text)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION vgram_text_iclike(vgram_text, text)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION vgram_likesel(internal, oid, internal, int4)
+RETURNS float8
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE OPERATOR ~~ (
+	FUNCTION = vgram_text_like,
+	LEFTARG = vgram_text,
+	RIGHTARG = text,
+	RESTRICT = vgram_likesel,
+	JOIN = pg_catalog.likejoinsel
+);
+
+CREATE OPERATOR ~~* (
+	FUNCTION = vgram_text_iclike,
+	LEFTARG = vgram_text,
+	RIGHTARG = text,
+	RESTRICT = vgram_likesel,
+	JOIN = pg_catalog.likejoinsel
+);

@@ -37,8 +37,10 @@ static int	qgram_hash_value_compare_qgrams(const void *e1, const void *e2,
 
 
 Datum		vgram_typanalyze(PG_FUNCTION_ARGS);
+Datum		vgram_likesel(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(vgram_typanalyze);
+PG_FUNCTION_INFO_V1(vgram_likesel);
 
 /*
  *	vgram_typanalyze -- a custom typanalyze function for vgram_text columns
@@ -434,4 +436,10 @@ qgram_hash_value_compare_qgrams(const void *e1, const void *e2, void *arg)
 	const QGramHashValue *const *t2 = (const QGramHashValue *const *) e2;
 
 	return strcmp((*t1)->key.qgram, (*t2)->key.qgram);
+}
+
+Datum
+vgram_likesel(PG_FUNCTION_ARGS)
+{
+	PG_RETURN_FLOAT8(0.05);
 }

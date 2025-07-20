@@ -33,11 +33,15 @@ Datum		print_qgrams(PG_FUNCTION_ARGS);
 Datum		get_vgrams(PG_FUNCTION_ARGS);
 Datum		qgram_stat_transfn(PG_FUNCTION_ARGS);
 Datum		qgram_stat_finalfn(PG_FUNCTION_ARGS);
+Datum		vgram_text_like(PG_FUNCTION_ARGS);
+Datum		vgram_text_iclike(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(get_vgrams);
 PG_FUNCTION_INFO_V1(print_vgrams);
 PG_FUNCTION_INFO_V1(qgram_stat_transfn);
 PG_FUNCTION_INFO_V1(qgram_stat_finalfn);
+PG_FUNCTION_INFO_V1(vgram_text_like);
+PG_FUNCTION_INFO_V1(vgram_text_iclike);
 
 static void addVGram(char *vgram, void *userData);
 
@@ -558,4 +562,22 @@ qgram_stat_finalfn(PG_FUNCTION_ARGS)
 
 	hash_destroy(state->qgramsHash);
 	PG_RETURN_ARRAYTYPE_P(construct_array_builtin(qgrams, qgramsCount, TEXTOID));
+}
+
+Datum
+vgram_text_like(PG_FUNCTION_ARGS)
+{
+	PG_RETURN_DATUM(DirectFunctionCall2Coll(textlike,
+											PG_GET_COLLATION(),
+											PG_GETARG_DATUM(0),
+											PG_GETARG_DATUM(1)));
+}
+
+Datum
+vgram_text_iclike(PG_FUNCTION_ARGS)
+{
+	PG_RETURN_DATUM(DirectFunctionCall2Coll(texticlike,
+											PG_GET_COLLATION(),
+											PG_GETARG_DATUM(0),
+											PG_GETARG_DATUM(1)));
 }
