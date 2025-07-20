@@ -1,12 +1,6 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION vgram" to load this file. \quit
 
-CREATE TABLE qgram_stat
-(
-	qgram text,
-	frequency float4
-);
-
 CREATE FUNCTION print_vgrams(s text, min_q int, max_q int)
 RETURNS void
 AS 'MODULE_PATHNAME'
@@ -77,3 +71,43 @@ AS
 		FUNCTION		7		vgram_gin_options (internal),
 		STORAGE			text;
 
+CREATE FUNCTION vgram_text_in(cstring)
+RETURNS vgram_text
+AS 'textin'
+LANGUAGE internal IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION vgram_text_out(vgram_text)
+RETURNS cstring
+AS 'textout'
+LANGUAGE internal IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION vgram_text_recv(internal)
+RETURNS vgram_text
+AS 'textrecv'
+LANGUAGE internal IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION vgram_text_send(vgram_text)
+RETURNS bytea
+AS 'textsend'
+LANGUAGE internal IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE FUNCTION vgram_typanalyze(internal)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT PARALLEL SAFE;
+
+CREATE TYPE vgram_text (
+	INPUT = vgram_text_in,
+	OUTPUT = vgram_text_out,
+	RECEIVE = vgram_text_recv,
+	SEND = vgram_text_send,
+	ANALYZE = vgram_typanalyze,
+	INTERNALLENGTH = -1,
+	ALIGNMENT = int4,
+	STORAGE = extended,
+	CATEGORY = S,
+	PREFERRED = false,
+	COLLATABLE = true
+);
+
+CREATE CAST (vgram_text AS text) WITHOUT FUNCTION AS IMPLICIT;

@@ -13,8 +13,10 @@
 #ifndef _V_GRAM_H_
 #define _V_GRAM_H_
 
+#include "nodes/pg_list.h"
 #include "tsearch/ts_locale.h"
 #include "utils/array.h"
+#include "utils/hsearch.h"
 
 /*
  * V-gram parameters
@@ -51,11 +53,45 @@ typedef struct
 	void		   *userData;
 } ExtractVGramsInfo;
 
+/*
+ * State of q-grams statistics collection.
+ */
+typedef struct
+{
+	MemoryContext	context;
+	int				minQ,
+					maxQ;
+	int				bCurrent;
+	HTAB		   *qgramsHash;
+	int64			totalCount,
+					qgramsCount,
+					totalLength;
+	float8			threshold;
+	List		   *incrementedQGrams;
+} QGramStatState;
+
+typedef struct
+{
+	char		   *qgram;
+} QGramHashKey;
+
+typedef struct
+{
+	QGramHashKey	key;
+	int64			count;
+	int				delta;
+	bool			incremented;
+} QGramHashValue;
+
 extern Size vgrams_fill(ArrayType *arr, void *ptr);
 extern int vgram_sort_cmp(const void *v1, const void *v2);
+extern uint32 qgram_key_hash(const void *key, Size keysize);
+extern int qgram_key_match(const void *key1, const void *key2, Size keysize);
+extern void qgram_state_cleanup(QGramStatState *state);
 extern void extractMinimalVGramsWord(const char *wordStart, const char *wordEnd, void *userData);
 extern void extractWords(const char *string, size_t len, WordCallback callback, void *userData);
 extern void extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData);
+extern void collectStatsWord(const char *wordStart, const char *wordEnd, void *userData);
 extern Datum *extractQueryLike(VGramOptions *options, int32 *nentries, text *pattern);
 
 #endif /* _V_GRAM_H_ */

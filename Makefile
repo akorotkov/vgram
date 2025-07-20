@@ -1,7 +1,7 @@
 # contrib/pg_stat_statements/Makefile
 
 MODULE_big = vgram
-OBJS = vgram.o vgram_gin.o vgram_like.o
+OBJS = vgram.o vgram_gin.o vgram_like.o vgram_typanalyze.o
 
 EXTENSION = vgram
 DATA = vgram--1.0.sql

@@ -11,7 +11,6 @@
  *
  *-------------------------------------------------------------------------
  */
-#include "catalog/pg_type_d.h"
 #include "postgres.h"
 
 #include "access/hash.h"
@@ -23,7 +22,6 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/formatting.h"
-#include "utils/hsearch.h"
 #include "utils/memutils.h"
 #include <stddef.h>
 
@@ -41,42 +39,7 @@ PG_FUNCTION_INFO_V1(print_vgrams);
 PG_FUNCTION_INFO_V1(qgram_stat_transfn);
 PG_FUNCTION_INFO_V1(qgram_stat_finalfn);
 
-static int	qgram_key_match(const void *key1, const void *key2, Size keysize);
-static uint32 qgram_key_hash(const void *key, Size keysize);
 static void addVGram(char *vgram, void *userData);
-
-typedef struct
-{
-	char	   *qgram;
-	float		frequency;
-} QGramTableElement;
-
-/*
- * State of q-grams statistics collection.
- */
-typedef struct
-{
-	MemoryContext	context;
-	int				minQ,
-					maxQ;
-	HTAB		   *qgramsHash;
-	int64			totalCount,
-					totalLength;
-	float8			threshold;
-	List		   *incrementedQGrams;
-} QGramStatState;
-
-typedef struct
-{
-	char		   *qgram;
-} QGramHashKey;
-
-typedef struct
-{
-	QGramHashKey	key;
-	int64			count;
-	bool			incremented;
-} QGramHashValue;
 
 /**
  * Search q-grams stat table for given prefix. Initially lower and upper
@@ -137,6 +100,7 @@ addQGramToHash(char *qgram, QGramStatState *state)
 	if (!found)
 	{
 		value->count = 1;
+		value->delta = state->bCurrent - 1;
 		state->incrementedQGrams = lappend(state->incrementedQGrams, qgram);
 	}
 	else
@@ -149,6 +113,7 @@ addQGramToHash(char *qgram, QGramStatState *state)
 		pfree(qgram);
 	}
 	value->incremented = true;
+	state->qgramsCount++;
 }
 
 /**
@@ -158,7 +123,7 @@ addQGramToHash(char *qgram, QGramStatState *state)
  * @param wordEnd Pointer below to the last character of the word.
  * @param userData Pointer to QGramStatState structure.
  */
-static void
+void
 collectStatsWord(const char *wordStart, const char *wordEnd,
 				 void *userData)
 {
@@ -449,7 +414,7 @@ get_vgrams(PG_FUNCTION_ARGS)
 										  ));
 }
 
-static uint32
+uint32
 qgram_key_hash(const void *key, Size keysize)
 {
 	const QGramHashKey *qgramKey = (const QGramHashKey *) key;
@@ -459,13 +424,35 @@ qgram_key_hash(const void *key, Size keysize)
 								   (int) len));
 }
 
-static int
+int
 qgram_key_match(const void *key1, const void *key2, Size keysize)
 {
 	const QGramHashKey *qgramKey1 = (const QGramHashKey *) key1;
 	const QGramHashKey *qgramKey2 = (const QGramHashKey *) key2;
 
 	return strcmp(qgramKey1->qgram, qgramKey2->qgram);
+}
+
+void
+qgram_state_cleanup(QGramStatState *state)
+{
+	foreach_ptr(char, qgram, state->incrementedQGrams)
+	{
+		QGramHashKey key;
+		QGramHashValue *value;
+		bool		found;
+
+		key.qgram = qgram;
+		value = (QGramHashValue *) hash_search(state->qgramsHash,
+											   (const void *) &key,
+											   HASH_FIND,
+											   &found);
+		Assert(value && found);
+		value->incremented = false;
+	}
+
+	list_free(state->incrementedQGrams);
+	state->incrementedQGrams = NIL;
 }
 
 Datum
@@ -519,24 +506,7 @@ qgram_stat_transfn(PG_FUNCTION_ARGS)
 		text	   *s = PG_GETARG_TEXT_PP(1);
 
 		extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), collectStatsWord, state);
-
-		foreach_ptr(char, qgram, state->incrementedQGrams)
-		{
-			QGramHashKey key;
-			QGramHashValue *value;
-			bool		found;
-
-			key.qgram = qgram;
-			value = (QGramHashValue *) hash_search(state->qgramsHash,
-												   (const void *) &key,
-												   HASH_FIND,
-												   &found);
-			Assert(value && found);
-			value->incremented = false;
-		}
-
-		list_free(state->incrementedQGrams);
-		state->incrementedQGrams = NIL;
+		qgram_state_cleanup(state);
 	}
 
 
