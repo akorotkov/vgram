@@ -88,6 +88,8 @@ extern int vgram_sort_cmp(const void *v1, const void *v2);
 extern uint32 qgram_key_hash(const void *key, Size keysize);
 extern int qgram_key_match(const void *key1, const void *key2, Size keysize);
 extern void qgram_state_cleanup(QGramStatState *state);
+extern const char *get_wildcard_part(const char *str, int lenstr,
+									 char *buf, int *bytelen, int *charlen);
 extern void extractMinimalVGramsWord(const char *wordStart, const char *wordEnd, void *userData);
 extern void extractWords(const char *string, size_t len, WordCallback callback, void *userData);
 extern void extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData);

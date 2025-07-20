@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
- * ts_typanalyze.c
- *	  functions for gathering statistics from tsvector columns
+ * vgram_typanalyze.c
+ *	  functions for gathering statistics from vgram_text columns
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
- *
+ * Portions Copyright (c) 2025, Alexander Korotkov
  *
  * IDENTIFICATION
- *	  src/backend/tsearch/ts_typanalyze.c
+ *	  contrib/vgram/vgram_typanalyze.c
  *
  *-------------------------------------------------------------------------
  */
@@ -17,8 +17,6 @@
 #include "catalog/pg_collation.h"
 #include "catalog/pg_operator.h"
 #include "commands/vacuum.h"
-#include "common/hashfn.h"
-#include "tsearch/ts_type.h"
 #include "utils/builtins.h"
 #include "varatt.h"
 
@@ -37,10 +35,8 @@ static int	qgram_hash_value_compare_qgrams(const void *e1, const void *e2,
 
 
 Datum		vgram_typanalyze(PG_FUNCTION_ARGS);
-Datum		vgram_likesel(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(vgram_typanalyze);
-PG_FUNCTION_INFO_V1(vgram_likesel);
 
 /*
  *	vgram_typanalyze -- a custom typanalyze function for vgram_text columns
@@ -436,10 +432,4 @@ qgram_hash_value_compare_qgrams(const void *e1, const void *e2, void *arg)
 	const QGramHashValue *const *t2 = (const QGramHashValue *const *) e2;
 
 	return strcmp((*t1)->key.qgram, (*t2)->key.qgram);
-}
-
-Datum
-vgram_likesel(PG_FUNCTION_ARGS)
-{
-	PG_RETURN_FLOAT8(0.05);
 }

@@ -40,7 +40,7 @@
  * If the found word is bounded by non-word characters or string boundaries
  * then this function will include corresponding padding spaces into buf.
  */
-static const char *
+const char *
 get_wildcard_part(const char *str, int lenstr,
 				  char *buf, int *bytelen, int *charlen)
 {
