@@ -26,11 +26,20 @@ installcheck: regresscheck
 
 PG_REGRESS_ARGS=--no-locale --temp-instance=./tmp_check
 
+ifeq ($(shell [ $(MAJORVERSION) -ge $(15) ] && echo yes || echo no),yes)
 regresscheck: | submake-regress submake-vgram temp-install
 	$(with_temp_install) $(pg_regress_check) \
 		--temp-config regression.conf \
 		$(PG_REGRESS_ARGS) \
 		$(REGRESS)
+else
+regresscheck: | submake-regress submake-vgram temp-install
+	$(pg_regress_check) \
+		--temp-config regression.conf \
+		$(PG_REGRESS_ARGS) \
+		$(REGRESS)
+endif
+
 endif
 
 ifdef VALGRIND
