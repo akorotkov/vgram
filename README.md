@@ -74,6 +74,51 @@ CREATE INDEX
 (4 rows)
 ```
 
+Advanced statistics
+-------------------
+
+You also may use `vgram_text` datatype instead of simple `text` and take
+advantage of statistics for frequent individual characters, 2-grams, and
+3-grams.  These statistics provide selectivity estimation for LIKE/ILIKE
+using Markov's model.  LIKE/ILIKE operators are implemented directly for
+`vgram_text` while the rest of string operations are available using implicit
+cast to `text`.  Note that you must use `vgram_gin_ops2` opclass for
+`vgram_text` columns.
+
+```sql
+# CREATE TABLE titles (s text);
+CREATE TABLE
+
+# \copy titles from 'data/titles.data'
+COPY 10000
+
+# ANALYZE titles;
+ANALYZE
+
+# EXPLAIN ANALYZE SELECT * FROM titles WHERE s LIKE '%the%';
+                                                 QUERY PLAN
+------------------------------------------------------------------------------------------------------------
+ Seq Scan on titles  (cost=0.00..225.00 rows=1030 width=48) (actual time=0.018..2.075 rows=1103.00 loops=1)
+   Filter: (s ~~ '%the%'::text)
+   Rows Removed by Filter: 8897
+   Buffers: shared hit=100
+ Planning Time: 0.094 ms
+ Execution Time: 2.137 ms
+(6 rows)
+
+Time: 2.783 ms
+# EXPLAIN ANALYZE SELECT * FROM titles WHERE s LIKE '%zz%';
+                                               QUERY PLAN
+---------------------------------------------------------------------------------------------------------
+ Seq Scan on titles  (cost=0.00..225.00 rows=64 width=48) (actual time=0.043..1.556 rows=105.00 loops=1)
+   Filter: (s ~~ '%zz%'::text)
+   Rows Removed by Filter: 9895
+   Buffers: shared hit=100
+ Planning Time: 0.145 ms
+ Execution Time: 1.590 ms
+(6 rows)
+```
+
 Author
 ------
 
