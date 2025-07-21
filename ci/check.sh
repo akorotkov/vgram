@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eu
+set -eux
 export PATH="$GITHUB_WORKSPACE/pgsql/bin:$GITHUB_WORKSPACE/python3-venv/bin:$PATH"
 
 # unsets limit for coredumps size
