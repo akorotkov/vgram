@@ -32,7 +32,5 @@ jobs:
         run: bash ./vgram/ci/prerequisites.sh
       - name: Build
         run: bash ./vgram/ci/build.sh
-      - name: Install post build prerequisites
-        run: bash ./vgram/ci/post_build_prerequisites.sh
       - name: PGIndent
         run: bash ./vgram/ci/pgindent.sh
