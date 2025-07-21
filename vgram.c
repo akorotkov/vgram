@@ -4,7 +4,7 @@
  *		Routines for Q-gram statistics collection and dividing strings
  *		into V-grams.
  *
- * Copyright (c) 2011-2017, Alexander Korotkov
+ * Copyright (c) 2011-2025, Alexander Korotkov
  *
  * IDENTIFICATION
  *	  contrib/vgram/vgram.c

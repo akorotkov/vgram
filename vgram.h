@@ -3,7 +3,7 @@
  * vgram.h
  *		Header for vgram module.
  *
- * Copyright (c) 2011-2017, Alexander Korotkov
+ * Copyright (c) 2011-2025, Alexander Korotkov
  *
  * IDENTIFICATION
  *	  contrib/vgram/vgram.h

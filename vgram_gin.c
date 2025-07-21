@@ -3,7 +3,7 @@
  * vgram_gin.c
  *		Routines for GIN indexing of V-grams extracted from strings.
  *
- * Copyright (c) 2011-2017, Alexander Korotkov
+ * Copyright (c) 2011-2025, Alexander Korotkov
  *
  * IDENTIFICATION
  *	  contrib/vgram/vgram_gin.c
