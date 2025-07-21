@@ -15,7 +15,7 @@ if [ $oomcount != $oomsbefore ]; then
 fi
 
 # show diff if it exists
-for f in ` find ./vgram/test ./postgresql/src/test -name regression.diffs ` ; do
+for f in ` find ./vgram ./postgresql/src -name regression.diffs ` ; do
 	echo "========= Contents of $f"
 	cat $f
 	status=1
