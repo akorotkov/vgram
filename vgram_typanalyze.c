@@ -189,7 +189,7 @@ compute_vgram_stats(VacAttrStats *stats,
 		text	   *s;
 		int64		prevQGramCount = state.qgramsCount;
 
-		vacuum_delay_point(true);
+		vacuum_delay_point();
 
 		value = fetchfunc(stats, string_no, &isnull);
 
@@ -275,8 +275,8 @@ compute_vgram_stats(VacAttrStats *stats,
 
 		/* emit some statistics for debug purposes */
 		elog(DEBUG3, "vgram_stats: target # mces = %d, bucket width = %d, "
-			 "# lexemes = %lld, hashtable size = %d, usable entries = %d",
-			 num_mcelem, bucket_width, state.qgramsCount, i, track_len);
+			 "# lexemes = %d, hashtable size = %d, usable entries = %d",
+			 num_mcelem, bucket_width, (int) state.qgramsCount, i, track_len);
 
 		/*
 		 * If we obtained more lexemes than we really want, get rid of those
