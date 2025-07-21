@@ -18,7 +18,7 @@ elif [ "$COMPILER" = "gcc" ]; then
 		--suppress=uselessAssignmentPtrArg \
 		--suppress=incorrectStringBooleanError \
 		--suppress=nullPointerRedundantCheck \
-		--std=c89 --inline-suppr --verbose *.c *.h 2> cppcheck.log
+		--std=c89 --inline-suppr --verbose *.c *.h -I $GITHUB_WORKSPACE/pgsql/include 2> cppcheck.log
 
 	if [ -s cppcheck.log ]; then
 		cat cppcheck.log
