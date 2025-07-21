@@ -44,19 +44,20 @@ Datum
 vgram_typanalyze(PG_FUNCTION_ARGS)
 {
 	VacAttrStats *stats = (VacAttrStats *) PG_GETARG_POINTER(0);
-#if PG_VERSION_NUM >= 170000
-	int			attstattarget = stats->attstattarget;
-#else
-	int			attstattarget = stats->attr->attstattarget;
-#endif
 
 	/* If the attstattarget column is negative, use the default value */
-	if (attstattarget < 0)
-		attstattarget = default_statistics_target;
+#if PG_VERSION_NUM >= 170000
+	if (stats->attstattarget < 0)
+		stats->attstattarget = default_statistics_target;
+	stats->minrows = 300 * stats->attstattarget;
+#else
+	if (stats->attr->attstattarget < 0)
+		stats->attr->attstattarget = default_statistics_target;
+	stats->minrows = 300 * stats->attr->attstattarget;
+#endif
 
 	stats->compute_stats = compute_vgram_stats;
 	/* see comment about the choice of minrows in commands/analyze.c */
-	stats->minrows = 300 * attstattarget;
 
 	PG_RETURN_BOOL(true);
 }
