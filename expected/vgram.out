@@ -203,3 +203,67 @@ SELECT * FROM titles WHERE s ilike '%annotation%';
  Models and Tools for Collaborative Annotation
 (19 rows)
 
+DROP INDEX titles_s_idx;
+ALTER TABLE titles ALTER COLUMN s TYPE vgram_text USING s::vgram_text;
+ANALYZE titles;
+CREATE INDEX titles_s_idx ON titles USING gin (s vgram_gin_ops2 (minq=2, maxq=4, vgrams=:'vgrams'));
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%indexing%';
+                   QUERY PLAN                   
+------------------------------------------------
+ Bitmap Heap Scan on titles
+   Recheck Cond: (s ~~* '%indexing%'::text)
+   ->  Bitmap Index Scan on titles_s_idx
+         Index Cond: (s ~~* '%indexing%'::text)
+(4 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%annotation%';
+                    QUERY PLAN                    
+--------------------------------------------------
+ Bitmap Heap Scan on titles
+   Recheck Cond: (s ~~* '%annotation%'::text)
+   ->  Bitmap Index Scan on titles_s_idx
+         Index Cond: (s ~~* '%annotation%'::text)
+(4 rows)
+
+SELECT * FROM titles WHERE s ilike '%indexing%';
+                                              s                                               
+----------------------------------------------------------------------------------------------
+ Hybrid term indexing for different IR models.
+ Word Spotting: A New Approach to Indexing Handwriting.
+ Fast Discovery of Sequential Patterns through Memory Indexing and Database Partitioning.
+ Efficient speech indexing and search for embedded devices using uniterms.
+ Spatio-Temporal Indexing in Oracle: Issues and Challenges.
+ Knowledge-Enhanced Latent Semantic Indexing.
+ The EURATOM automatic indexing project.
+ Spectral cross-correlation features for audio indexing of broadcast news and meetings.
+ Crawling, Indexing, and Similarity Searching Images on the Web.
+ Integrated Technologies for Indexing Spoken Language.
+ Hybrid Transformation for Indexing and Searching Web Documents in the Cartographic Paradigm.
+ Indexing Continual Range Queries with Covering Tiles for Fast Locating of Moving Objects.
+ Indexing and Mining Time Series Data.
+(13 rows)
+
+SELECT * FROM titles WHERE s ilike '%annotation%';
+                                                            s                                                            
+-------------------------------------------------------------------------------------------------------------------------
+ Information theory applied to the sparse gene ontology annotation network to predict novel gene function.
+ An Image Annotation Guide Agent.
+ Image Annotation System Using Visual and Textual Features.
+ A Tool for Automatic Genome Annotation.
+ Ubiquitous Interactive Video Editing Via Multimodal Annotations.
+ Image annotation using multi-correlation probabilistic matrix factorization.
+ Documenting Motion Sequences with a Personalized Annotation System.
+ Semantic Annotation of a Natural Language Corpus for Knowledge Extraction.
+ Semantic Video Annotation using Background Knowledge and Similarity-based Video Retrieval.
+ An Efficient Time Annotation Technique in Abstract RTOS Simulations for Multiprocessor Task Migration.
+ Using local discriminant topic to improve generative model based image annotation.
+ Tag around: a 3D gesture game for image annotation.
+ Evaluation of a large-scale biomedical data annotation initiative.
+ Exploiting Term Co-occurrence for Enhancing Automated Image Annotation.
+ Semi-automatic annotation system for home videos.
+ Lazy Annotation for Program Testing and Verification.
+ The value of adaptive link annotation in e-learning: a study of a portal-based approach.
+ Effects of link annotations on search performance in layered and unlayered hierarchically organized information spaces.
+ Models and Tools for Collaborative Annotation
+(19 rows)
+

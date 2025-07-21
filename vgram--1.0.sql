@@ -111,6 +111,7 @@ CREATE TYPE vgram_text (
 );
 
 CREATE CAST (vgram_text AS text) WITHOUT FUNCTION AS IMPLICIT;
+CREATE CAST (text AS vgram_text) WITHOUT FUNCTION;
 
 CREATE FUNCTION vgram_text_like(vgram_text, text)
 RETURNS bool
