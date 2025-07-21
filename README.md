@@ -1,6 +1,10 @@
 vgram - V-gram indexing and statistics for PostgreSQL
 =====================================================
 
+[![check status](https://github.com/akorotkov/vgram/actions/workflows/check.yml/badge.svg)](https://github.com/orioledb/orioledb/actions)
+
+[![Coverage Status](https://coveralls.io/repos/github/orioledb/orioledb/badge.svg?branch=main)](https://coveralls.io/github/orioledb/orioledb?branch=main) [![dockerhub](https://github.com/orioledb/orioledb/actions/workflows/docker.yml/badge.svg)](https://hub.docker.com/r/orioledb/orioledb/tags)
+
 Key idea
 --------
 
@@ -117,6 +121,29 @@ Time: 2.783 ms
  Planning Time: 0.145 ms
  Execution Time: 1.590 ms
 (6 rows)
+```
+
+Installation
+------------
+
+`vgram` is PostgreSQL extension which requires PostgreSQL 13 or higher.
+Before build and install you should ensure following:
+
+ * PostgreSQL version is 13 or higher.
+ * You have development package of PostgreSQL installed or you built
+   PostgreSQL from source.
+ * Your PATH variable is configured so that `pg_config` command available,
+   or set `PG_CONFIG` variable.
+
+Typical installation procedure may look like this:
+
+```bash
+$ git clone https://github.com/akorotkov/vgram.git
+$ cd vgram
+$ make USE_PGXS=1
+$ sudo make USE_PGXS=1 install
+$ make USE_PGXS=1 installcheck
+$ psql DB -c "CREATE EXTENSION vgram;"
 ```
 
 Author
