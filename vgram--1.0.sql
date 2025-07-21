@@ -142,3 +142,26 @@ CREATE OPERATOR ~~* (
 	RESTRICT = vgram_likesel,
 	JOIN = pg_catalog.likejoinsel
 );
+
+CREATE FUNCTION vgram_cmp(vgram_text, vgram_text)
+RETURNS int4
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION vgram_gin_extract_value(vgram_text, internal)
+RETURNS internal
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR CLASS vgram_gin_ops2
+FOR TYPE vgram_text USING gin
+AS
+		OPERATOR		3		~~ (vgram_text, text),
+		OPERATOR		4		~~* (vgram_text, text),
+		FUNCTION		1		vgram_cmp (vgram_text, vgram_text),
+		FUNCTION		2		vgram_gin_extract_value (vgram_text, internal),
+		FUNCTION		3		vgram_gin_extract_query (text, internal, int2, internal, internal, internal, internal),
+		FUNCTION		4		vgram_gin_consistent (internal, int2, text, int4, internal, internal, internal, internal),
+		FUNCTION		6		vgram_gin_triconsistent (internal, int2, text, int4, internal, internal, internal),
+		FUNCTION		7		vgram_gin_options (internal),
+		STORAGE			text;
