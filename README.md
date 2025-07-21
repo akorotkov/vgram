@@ -148,7 +148,7 @@ $ psql DB -c "CREATE EXTENSION vgram;"
 Author
 ------
 
- * Alexander Korotkov <aekorotkov@gmail.com>, OrioleDB
+ * Alexander Korotkov <aekorotkov@gmail.com>, Supabase Inc.
 
 Availability
 ------------
@@ -158,4 +158,4 @@ installation. It is available from
 [github](https://github.com/akorotkov/vgram)
 under the same license as
 [PostgreSQL](https://www.postgresql.org/about/licence/)
-and supports PostgreSQL 14+.
+and supports PostgreSQL 13+.
