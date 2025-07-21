@@ -106,7 +106,7 @@ typedef struct
 	Datum	   *entries;
 	int32		nentries;
 	int32		allocatedEntries;
-}	ExtractValueInfo;
+} ExtractValueInfo;
 
 static void
 extractVGram(char *vgram, void *userData)
@@ -271,19 +271,19 @@ vgram_gin_extract_query(PG_FUNCTION_ARGS)
 static void
 vgrams_validator(const char *value)
 {
-	ArrayType *arr;
-	int		nVgrams;
-	Datum  *elems;
-	FmgrInfo finfo;
+	ArrayType  *arr;
+	int			nVgrams;
+	Datum	   *elems;
+	FmgrInfo	finfo;
 
 	if (value == NULL)
 		return;
 
 	fmgr_info(F_ARRAY_IN, &finfo);
 	arr = DatumGetArrayTypeP(FunctionCall3(&finfo,
-							 CStringGetDatum(value),
-							 ObjectIdGetDatum(TEXTOID),
-							 Int32GetDatum(-1)));
+										   CStringGetDatum(value),
+										   ObjectIdGetDatum(TEXTOID),
+										   Int32GetDatum(-1)));
 
 	deconstruct_array(arr, TEXTOID, -1, false, 'i', &elems, NULL, &nVgrams);
 }
@@ -291,11 +291,11 @@ vgrams_validator(const char *value)
 Size
 vgrams_fill(ArrayType *arr, void *ptr)
 {
-	int		nVgrams;
-	Datum  *elems;
-	int		i;
-	Size	size = sizeof(int);
-	Pointer p = (Pointer) ptr;
+	int			nVgrams;
+	Datum	   *elems;
+	int			i;
+	Size		size = sizeof(int);
+	Pointer		p = (Pointer) ptr;
 
 	deconstruct_array(arr, TEXTOID, -1, false, 'i', &elems, NULL, &nVgrams);
 
@@ -307,8 +307,8 @@ vgrams_fill(ArrayType *arr, void *ptr)
 
 	for (i = 0; i < nVgrams; i++)
 	{
-		char   *vgram = VARDATA_ANY(elems[i]);
-		int		vgramSize = VARSIZE_ANY_EXHDR(elems[i]);
+		char	   *vgram = VARDATA_ANY(elems[i]);
+		int			vgramSize = VARSIZE_ANY_EXHDR(elems[i]);
 
 		if (p)
 		{
@@ -325,8 +325,8 @@ vgrams_fill(ArrayType *arr, void *ptr)
 static Size
 vgrams_fill_string(const char *value, void *ptr)
 {
-	ArrayType *arr;
-	FmgrInfo finfo;
+	ArrayType  *arr;
+	FmgrInfo	finfo;
 
 	if (value == NULL)
 	{
@@ -337,9 +337,9 @@ vgrams_fill_string(const char *value, void *ptr)
 
 	fmgr_info(F_ARRAY_IN, &finfo);
 	arr = DatumGetArrayTypeP(FunctionCall3(&finfo,
-							 CStringGetDatum(value),
-							 ObjectIdGetDatum(TEXTOID),
-							 Int32GetDatum(-1)));
+										   CStringGetDatum(value),
+										   ObjectIdGetDatum(TEXTOID),
+										   Int32GetDatum(-1)));
 
 	return vgrams_fill(arr, ptr);
 }
@@ -347,12 +347,12 @@ vgrams_fill_string(const char *value, void *ptr)
 static void
 gin_relopts_validator(void *parsed_options, relopt_value *vals, int nvals)
 {
-	VGramOptions   *options = (VGramOptions *) parsed_options;
+	VGramOptions *options = (VGramOptions *) parsed_options;
 
 	if (options->minQ > options->maxQ)
-					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("\"minq\" can't be greater than \"maxq\"")));
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("\"minq\" can't be greater than \"maxq\"")));
 }
 
 Datum

@@ -231,7 +231,7 @@ compute_vgram_stats(VacAttrStats *stats,
 		int			nonnull_cnt = samplerows - null_cnt;
 		int			i;
 		QGramHashValue **sort_table;
-		QGramHashValue  *item;
+		QGramHashValue *item;
 		int			track_len;
 		int			cutoff_freq;
 		int			minfreq,
@@ -255,7 +255,7 @@ compute_vgram_stats(VacAttrStats *stats,
 		 */
 		cutoff_freq = 9 * state.qgramsCount / bucket_width;
 
-		i = hash_get_num_entries(state.qgramsHash);	/* surely enough space */
+		i = hash_get_num_entries(state.qgramsHash); /* surely enough space */
 		sort_table = (QGramHashValue **) palloc(sizeof(QGramHashValue *) * i);
 
 		hash_seq_init(&scan_status, state.qgramsHash);
@@ -388,7 +388,7 @@ static void
 prune_qgrams_hashtable(HTAB *qgramsHash, int b_current)
 {
 	HASH_SEQ_STATUS scan_status;
-	QGramHashValue  *item;
+	QGramHashValue *item;
 
 	hash_seq_init(&scan_status, qgramsHash);
 	while ((item = (QGramHashValue *) hash_seq_search(&scan_status)) != NULL)

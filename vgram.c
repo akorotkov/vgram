@@ -132,9 +132,9 @@ collectStatsWord(const char *wordStart, const char *wordEnd,
 				 void *userData)
 {
 	QGramStatState *state = (QGramStatState *) userData;
-	const char	   *p,
-				   *r;
-	int				q;
+	const char *p,
+			   *r;
+	int			q;
 
 	/* Collect q-grams stat */
 	for (q = state->minQ; q <= state->maxQ; q++)
@@ -343,9 +343,9 @@ print_vgrams(PG_FUNCTION_ARGS)
 	qgramsHashCtl.hash = qgram_key_hash;
 	qgramsHashCtl.match = qgram_key_match;
 	state.qgramsHash = hash_create("string qgrams hash",
-									1024,
-									&qgramsHashCtl,
-									HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
+								   1024,
+								   &qgramsHashCtl,
+								   HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
 	state.context = CurrentMemoryContext;
 
 	extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), collectStatsWord, &state);
@@ -364,7 +364,7 @@ typedef struct
 {
 	Datum	   *vgrams;
 	int			count;
-}	VGramsInfo;
+} VGramsInfo;
 
 static void
 addVGram(char *vgram, void *userData)
@@ -401,7 +401,7 @@ get_vgrams(PG_FUNCTION_ARGS)
 	VGramOptions *options = makeOptions(minQ, maxQ, vgrams);
 	VGramsInfo	vgramsInfo;
 
-	vgramsInfo.vgrams = (Datum *) palloc(sizeof(Datum) * VARSIZE_ANY_EXHDR(s) *(maxQ - minQ + 1));
+	vgramsInfo.vgrams = (Datum *) palloc(sizeof(Datum) * VARSIZE_ANY_EXHDR(s) * (maxQ - minQ + 1));
 	vgramsInfo.count = 0;
 
 	userData.callback = addVGram;
@@ -462,9 +462,9 @@ qgram_state_cleanup(QGramStatState *state)
 Datum
 qgram_stat_transfn(PG_FUNCTION_ARGS)
 {
-	MemoryContext	oldcontext;
+	MemoryContext oldcontext;
 	QGramStatState *state;
-	HASHCTL			qgramsHashCtl;
+	HASHCTL		qgramsHashCtl;
 
 	state = PG_ARGISNULL(0) ? NULL : (QGramStatState *) PG_GETARG_POINTER(0);
 
@@ -522,12 +522,12 @@ Datum
 qgram_stat_finalfn(PG_FUNCTION_ARGS)
 {
 	QGramStatState *state;
-	int				limitCount;
+	int			limitCount;
 	HASH_SEQ_STATUS scanStatus;
 	QGramHashValue *item;
-	Datum		   *qgrams;
-	int				qgramsCount = 0;
-	int				i;
+	Datum	   *qgrams;
+	int			qgramsCount = 0;
+	int			i;
 
 	state = PG_ARGISNULL(0) ? NULL : (QGramStatState *) PG_GETARG_POINTER(0);
 

@@ -58,7 +58,7 @@ static float4 estimate_like_fragment_sel(StatData *statData,
 										 const char *s, int len);
 static float4 lookup_qgram(StatData *statData, const char *qgram,
 						   int len, bool *found);
-static int qgram_key_cmp_internal(const void *e1, const void *e2);
+static int	qgram_key_cmp_internal(const void *e1, const void *e2);
 
 Datum
 vgram_likesel(PG_FUNCTION_ARGS)
@@ -131,7 +131,7 @@ vgram_likesel(PG_FUNCTION_ARGS)
 	statData.lookupLen = sslot.nvalues;
 	for (i = 0; i < sslot.nvalues; i++)
 	{
-		text   *value = DatumGetTextPP(sslot.values[i]);
+		text	   *value = DatumGetTextPP(sslot.values[i]);
 
 		Assert(!VARATT_IS_COMPRESSED(value) && !VARATT_IS_EXTERNAL(value));
 		statData.lookup[i].key.qgram = VARDATA_ANY(value);
@@ -190,7 +190,8 @@ estimate_like_fragment_sel(StatData *statData, const char *s, int len)
 	float4		result;
 	int			charLen = pg_mbstrlen_with_len(s, len);
 	int			i;
-	const char *p, *q;
+	const char *p,
+			   *q;
 
 	if (charLen <= MAX_STAT_Q)
 	{

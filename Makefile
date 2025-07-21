@@ -19,3 +19,9 @@ top_builddir = ../..
 include $(top_builddir)/src/Makefile.global
 include $(top_srcdir)/contrib/contrib-global.mk
 endif
+
+vgram.typedefs: $(OBJS)
+	./typedefs_gen.py
+
+pgindent: vgram.typedefs
+	pgindent --typedefs=vgram.typedefs *.c *.h

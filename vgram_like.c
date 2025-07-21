@@ -163,7 +163,7 @@ typedef struct
 	char	  **data;
 	int			count;
 	int			allocated;
-}	VGramInfo;
+} VGramInfo;
 
 static void
 addVGram(char *vgram, void *userData)
