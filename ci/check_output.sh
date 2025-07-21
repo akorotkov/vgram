@@ -22,7 +22,7 @@ for f in ` find ./vgram ./postgresql/src -name regression.diffs ` ; do
 done
 
 # show valgrind logs if needed
-if [ $CHECK_TYPE = "valgrind_1" ] || [ $CHECK_TYPE = "valgrind_2" ] || [ $CHECK_TYPE = "valgrind_3" ]; then
+if [ $CHECK_TYPE = "valgrind" ]; then
 	for f in ` find . -name pid-*.log ` ; do
 		if grep -q 'Command: [^ ]*/postgres' $f && grep -E -q '(Process terminating|ERROR SUMMARY: [1-9])' $f; then
 			echo "========= Contents of $f"
@@ -33,7 +33,7 @@ if [ $CHECK_TYPE = "valgrind_1" ] || [ $CHECK_TYPE = "valgrind_2" ] || [ $CHECK_
 fi
 
 # check core dumps if any
-if [ $CHECK_TYPE = "valgrind_1" ] || [ $CHECK_TYPE = "valgrind_2" ] || [ $CHECK_TYPE = "valgrind_3" ]; then
+if [ $CHECK_TYPE = "valgrind" ]; then
 	cores=$(find vgram/ -name '*.core.*' 2>/dev/null)
 else
 	cores=$(find /tmp/cores-$GITHUB_SHA-$TIMESTAMP/ -name '*.core' 2>/dev/null)
@@ -42,7 +42,7 @@ fi
 if [ -n "$cores" ]; then
 	for corefile in $cores ; do
 		if [[ $corefile != *_3.core ]]; then
-			if [ $CHECK_TYPE = "valgrind_1" ] || [ $CHECK_TYPE = "valgrind_2" ] || [ $CHECK_TYPE = "valgrind_3" ] ; then
+			if [ $CHECK_TYPE = "valgrind" ]; then
 				# Valgring core dumps have not auxiliary vector. We can't detect a binary file dynamically
 				# but this value is valid for most cases.
 				binary=tmp_install/usr/local/pgsql/bin/postgres

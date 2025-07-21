@@ -28,6 +28,7 @@ PG_REGRESS_ARGS=--no-locale --temp-instance=./tmp_check
 
 regresscheck: | submake-regress submake-vgram temp-install
 	$(with_temp_install) $(pg_regress_check) \
+		--temp-config regression.conf \
 		$(PG_REGRESS_ARGS) \
 		$(REGRESS)
 endif
