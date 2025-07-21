@@ -440,11 +440,14 @@ qgram_key_match(const void *key1, const void *key2, Size keysize)
 void
 qgram_state_cleanup(QGramStatState *state)
 {
-	foreach_ptr(char, qgram, state->incrementedQGrams)
+	ListCell   *lc;
+
+	foreach(lc, state->incrementedQGrams)
 	{
 		QGramHashKey key;
 		QGramHashValue *value;
 		bool		found;
+		char	   *qgram = (char *) lfirst(lc);
 
 		key.qgram = qgram;
 		value = (QGramHashValue *) hash_search(state->qgramsHash,
@@ -561,7 +564,7 @@ qgram_stat_finalfn(PG_FUNCTION_ARGS)
 	qsort(qgrams, qgramsCount, sizeof(Datum), vgram_sort_cmp);
 
 	hash_destroy(state->qgramsHash);
-	PG_RETURN_ARRAYTYPE_P(construct_array_builtin(qgrams, qgramsCount, TEXTOID));
+	PG_RETURN_ARRAYTYPE_P(construct_array(qgrams, qgramsCount, TEXTOID, -1, false, TYPALIGN_INT));
 }
 
 Datum

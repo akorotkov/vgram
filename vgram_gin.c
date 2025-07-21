@@ -10,7 +10,6 @@
  *
  *-------------------------------------------------------------------------
  */
-#include "c.h"
 #include "postgres.h"
 
 #include "catalog/pg_type_d.h"
@@ -22,7 +21,6 @@
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 
-#include "varatt.h"
 #include "vgram.h"
 
 Datum		vgram_cmp(PG_FUNCTION_ARGS);

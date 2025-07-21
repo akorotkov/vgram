@@ -18,7 +18,6 @@
 #include "catalog/pg_operator.h"
 #include "commands/vacuum.h"
 #include "utils/builtins.h"
-#include "varatt.h"
 
 #include "vgram.h"
 
@@ -45,14 +44,19 @@ Datum
 vgram_typanalyze(PG_FUNCTION_ARGS)
 {
 	VacAttrStats *stats = (VacAttrStats *) PG_GETARG_POINTER(0);
+#if PG_VERSION_NUM >= 170000
+	int			attstattarget = stats->attstattarget;
+#else
+	int			attstattarget = stats->attr->attstattarget;
+#endif
 
 	/* If the attstattarget column is negative, use the default value */
-	if (stats->attstattarget < 0)
-		stats->attstattarget = default_statistics_target;
+	if (attstattarget < 0)
+		attstattarget = default_statistics_target;
 
 	stats->compute_stats = compute_vgram_stats;
 	/* see comment about the choice of minrows in commands/analyze.c */
-	stats->minrows = 300 * stats->attstattarget;
+	stats->minrows = 300 * attstattarget;
 
 	PG_RETURN_BOOL(true);
 }
@@ -149,7 +153,11 @@ compute_vgram_stats(VacAttrStats *stats,
 	 * the number of individual lexeme values tracked in pg_statistic ought to
 	 * be more than the number of values for a simple scalar column.
 	 */
+#if PG_VERSION_NUM >= 170000
 	num_mcelem = stats->attstattarget * 10;
+#else
+	num_mcelem = stats->attr->attstattarget * 10;
+#endif
 
 	/*
 	 * We set bucket width equal to (num_mcelem + 10) / 0.007 as per the
@@ -285,8 +293,13 @@ compute_vgram_stats(VacAttrStats *stats,
 		 */
 		if (num_mcelem < track_len)
 		{
+#if PG_VERSION_NUM >= 160000
 			qsort_interruptible(sort_table, track_len, sizeof(QGramHashValue *),
 								qgram_hash_value_compare_frequencies_desc, NULL);
+#else
+			qsort_arg(sort_table, track_len, sizeof(QGramHashValue *),
+					  qgram_hash_value_compare_frequencies_desc, NULL);
+#endif
 			/* reset minfreq to the smallest frequency we're keeping */
 			minfreq = sort_table[num_mcelem - 1]->count;
 		}
@@ -314,8 +327,13 @@ compute_vgram_stats(VacAttrStats *stats,
 			 * presorted we can employ binary search for that.  See
 			 * ts_selfuncs.c for a real usage scenario.
 			 */
+#if PG_VERSION_NUM >= 160000
 			qsort_interruptible(sort_table, num_mcelem, sizeof(QGramHashValue *),
 								qgram_hash_value_compare_qgrams, NULL);
+#else
+			qsort_arg(sort_table, num_mcelem, sizeof(QGramHashValue *),
+					  qgram_hash_value_compare_qgrams, NULL);
+#endif
 
 			/* Must copy the target values into anl_context */
 			old_context = MemoryContextSwitchTo(stats->anl_context);

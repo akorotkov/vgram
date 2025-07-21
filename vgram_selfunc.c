@@ -23,7 +23,6 @@
 #include "utils/lsyscache.h"
 #include "utils/selfuncs.h"
 
-#include "varatt.h"
 #include "vgram.h"
 
 #define DEFAULT_LIKE_SEL 0.05
