@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pg_version: [17]
+        pg_version: [13, 15, 17]
         compiler: [clang, gcc]
         check_type: [normal, debug, sanitize, valgrind]
     env:

@@ -22,15 +22,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: vgram
-      - name: Get the required tag name
-        shell: bash
-        run: |
-          echo "PGTAG=$(grep '^${{ matrix.pg_version }}: ' vgram/.pgtags | cut -d' ' -f2-)" >> $GITHUB_ENV
       - name: Checkout PostgreSQL code into workspace directory
         uses: actions/checkout@v4
         with:
-          repository: vgram/postgres
-          ref: ${{ env.PGTAG }}
+          repository: postgres/postgres
+          ref: REL_${{ matrix.pg_version }}_STABLE
           path: postgresql
       - name: Setup prerequisites
         run: bash ./vgram/ci/prerequisites.sh
