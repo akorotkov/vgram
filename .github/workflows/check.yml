@@ -1,0 +1,82 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on:
+      - ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        pg_version: [17]
+        compiler: [clang, gcc]
+        check_type: [normal, debug, sanitize, valgrind]
+    env:
+      LLVM_VER: 18
+      CPU: ${{ matrix.cpu }}
+      CHECK_TYPE: ${{ matrix.check_type }}
+      COMPILER: ${{ matrix.compiler }}
+    steps:
+      - name: Checkout extension code into workspace directory
+        uses: actions/checkout@v4
+        with:
+          path: vgram
+      - name: Checkout PostgreSQL code into workspace directory
+        uses: actions/checkout@v4
+        with:
+          repository: postgres/postgres
+          ref: REL_${{ matrix.pg_version }}_STABLE
+          path: postgresql
+      - name: Setup prerequisites
+        run: bash ./vgram/ci/prerequisites.sh
+      - name: Build
+        run: bash ./vgram/ci/build.sh
+      - name: Check
+        timeout-minutes: ${{ (matrix.check_type == 'valgrind') && 150 || 20 }}
+        run: bash ./vgram/ci/check.sh
+      - name: Check output
+        run: bash ./vgram/ci/check_output.sh
+        if: ${{ success() || failure() }}
+      - name: Show stuck processes
+        run: bash ./vgram/ci/list_stuck.sh
+        if: ${{ always() }}
+      - name: Run lcov
+        if: ${{ matrix.check_type != 'sanitize' }}
+        run: bash ./vgram/ci/lcov.sh
+      - name: create artifact for coverage.info
+        if: ${{ matrix.check_type != 'sanitize' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.pg_version }}_${{ matrix.compiler }}_${{ matrix.check_type }}_coverage.info
+          path: ./vgram/coverage.info
+          retention-days: 1
+
+  finish:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout extension code into workspace directory
+        uses: actions/checkout@v4
+        with:
+          path: vgram
+      - name: Retrieve saved coverage.infos
+        uses: actions/download-artifact@v4
+      - name: Merge coverage files
+        run: bash ./vgram/ci/lcov_merge.sh
+      - name: coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          files: ./vgram/coverage.info
+
+  cleanup:
+    needs: finish
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: remove artifacts
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: "*coverage.info"

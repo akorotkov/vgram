@@ -20,8 +20,33 @@ include $(top_builddir)/src/Makefile.global
 include $(top_srcdir)/contrib/contrib-global.mk
 endif
 
+ifdef TEMP_INSTANCE
+installcheck: regresscheck
+	echo "All checks are successful!"
+
+PG_REGRESS_ARGS=--no-locale --temp-instance=./tmp_check
+
+regresscheck: | submake-regress submake-vgram temp-install
+	$(with_temp_install) $(pg_regress_check) \
+		$(PG_REGRESS_ARGS) \
+		$(REGRESS)
+endif
+
+ifdef VALGRIND
+override with_temp_install += PGCTLTIMEOUT=3000 \
+	valgrind --vgdb=yes --leak-check=no --gen-suppressions=all \
+	--suppressions=valgrind.supp --time-stamp=yes \
+	--log-file=pid-%p.log --trace-children=yes \
+	--trace-children-skip=*/initdb
+else
+override with_temp_install += PGCTLTIMEOUT=900
+endif
+
 vgram.typedefs: $(OBJS)
 	./typedefs_gen.py
 
 pgindent: vgram.typedefs
 	pgindent --typedefs=vgram.typedefs *.c *.h
+
+.PHONY: submake-vgram submake-regress check installcheck \
+	regresscheck pgindent

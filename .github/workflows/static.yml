@@ -1,0 +1,42 @@
+name: static
+
+on:
+  workflow_dispatch:
+#  push:
+#  pull_request:
+
+jobs:
+  static:
+    runs-on:
+      - ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        pg_version: [16, 17]
+        compiler: [clang, gcc]
+    env:
+      LLVM_VER: 18
+      CPU: ${{ matrix.cpu }}
+      CHECK_TYPE: static
+      COMPILER: ${{ matrix.compiler }}
+    steps:
+      - name: Checkout extension code into workspace directory
+        uses: actions/checkout@v4
+        with:
+          path: vgram
+      - name: Get the required tag name
+        shell: bash
+        run: |
+          echo "PGTAG=$(grep '^${{ matrix.pg_version }}: ' vgram/.pgtags | cut -d' ' -f2-)" >> $GITHUB_ENV
+      - name: Checkout PostgreSQL code into workspace directory
+        uses: actions/checkout@v4
+        with:
+          repository: vgram/postgres
+          ref: ${{ env.PGTAG }}
+          path: postgresql
+      - name: Setup prerequisites
+        run: bash ./vgram/ci/prerequisites.sh
+      - name: Build
+        run: bash ./vgram/ci/build.sh
+      - name: Static analysis
+        run: bash ./vgram/ci/static.sh
