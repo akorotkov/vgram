@@ -1,9 +1,8 @@
 vgram - V-gram indexing and statistics for PostgreSQL
 =====================================================
 
-[![check status](https://github.com/akorotkov/vgram/actions/workflows/check.yml/badge.svg)](https://github.com/orioledb/orioledb/actions)
-
-[![Coverage Status](https://coveralls.io/repos/github/orioledb/orioledb/badge.svg?branch=main)](https://coveralls.io/github/orioledb/orioledb?branch=main) [![dockerhub](https://github.com/orioledb/orioledb/actions/workflows/docker.yml/badge.svg)](https://hub.docker.com/r/orioledb/orioledb/tags)
+[![check status](https://github.com/akorotkov/vgram/actions/workflows/check.yml/badge.svg)](https://github.com/akorotkov/vgram/actions/workflows/check.yml)
+[![Coverage Status](https://coveralls.io/repos/github/akorotkov/vgram/badge.svg)](https://coveralls.io/github/akorotkov/vgram)
 
 Key idea
 --------
