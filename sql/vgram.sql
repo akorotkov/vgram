@@ -25,25 +25,35 @@ SELECT * FROM titles WHERE s ilike '%annotation%';
 SET enable_seqscan = OFF;
 SET enable_bitmapscan = ON;
 
-EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%indexing%';
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s like '%indexing%';
 EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%annotation%';
-SELECT * FROM titles WHERE s ilike '%indexing%';
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%ACM International Workshop on Mobile Entity Localization and Tracking in GPS-less Environments%';
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '$$the$$' escape '$';
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '$_abc$_' escape '$';
+SELECT * FROM titles WHERE s like '%indexing%';
 SELECT * FROM titles WHERE s ilike '%annotation%';
+SELECT * FROM titles WHERE s ilike '%ACM International Workshop on Mobile Entity Localization and Tracking in GPS-less Environments%';
+SELECT * FROM titles WHERE s ilike '$$the$$' escape '$';
+SELECT * FROM titles WHERE s ilike '$_abc$_' escape '$';
 
 DROP INDEX titles_s_idx;
 CREATE INDEX titles_s_idx ON titles USING gin (s vgram_gin_ops (minq=3, maxq=3));
 
-EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%indexing%';
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s like '%indexing%';
 EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%annotation%';
-SELECT * FROM titles WHERE s ilike '%indexing%';
+SELECT * FROM titles WHERE s like '%indexing%';
 SELECT * FROM titles WHERE s ilike '%annotation%';
+SELECT * FROM titles WHERE s ilike '%ACM International Workshop on Mobile Entity Localization and Tracking in GPS-less Environments%';
 
 DROP INDEX titles_s_idx;
 ALTER TABLE titles ALTER COLUMN s TYPE vgram_text USING s::vgram_text;
 ANALYZE titles;
+
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%abcdefghijk%';
+
 CREATE INDEX titles_s_idx ON titles USING gin (s vgram_gin_ops2 (minq=2, maxq=4, vgrams=:'vgrams'));
 
-EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%indexing%';
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s like '%indexing%';
 EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%annotation%';
-SELECT * FROM titles WHERE s ilike '%indexing%';
+SELECT * FROM titles WHERE s like '%indexing%';
 SELECT * FROM titles WHERE s ilike '%annotation%';
