@@ -6,14 +6,19 @@ on:
 
 jobs:
   check:
-    runs-on:
-      - ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
+        cpu: [amd64, arm64]
         pg_version: [13, 14, 15, 16, 17]
         compiler: [clang, gcc]
         check_type: [normal, debug, sanitize, valgrind]
+        include:
+          - cpu: amd64
+            runner: ubuntu-24.04
+          - cpu: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     env:
       LLVM_VER: 18
       CPU: ${{ matrix.cpu }}
@@ -50,7 +55,7 @@ jobs:
         if: ${{ matrix.check_type != 'sanitize' }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.pg_version }}_${{ matrix.compiler }}_${{ matrix.check_type }}_coverage.info
+          name: ${{ matrix.pg_version }}_${{ matrix.cpu }}_${{ matrix.compiler }}_${{ matrix.check_type }}_coverage.info
           path: ./vgram/coverage.info
           retention-days: 1
 
