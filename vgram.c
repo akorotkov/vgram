@@ -29,7 +29,6 @@
 
 PG_MODULE_MAGIC;
 
-Datum		print_qgrams(PG_FUNCTION_ARGS);
 Datum		get_vgrams(PG_FUNCTION_ARGS);
 Datum		qgram_stat_transfn(PG_FUNCTION_ARGS);
 Datum		qgram_stat_finalfn(PG_FUNCTION_ARGS);
@@ -37,7 +36,6 @@ Datum		vgram_text_like(PG_FUNCTION_ARGS);
 Datum		vgram_text_iclike(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(get_vgrams);
-PG_FUNCTION_INFO_V1(print_vgrams);
 PG_FUNCTION_INFO_V1(qgram_stat_transfn);
 PG_FUNCTION_INFO_V1(qgram_stat_finalfn);
 PG_FUNCTION_INFO_V1(vgram_text_like);
@@ -164,6 +162,7 @@ collectStatsWord(const char *wordStart, const char *wordEnd,
 	}
 }
 
+#ifdef NOT_USED
 /*
  * Extract rare-enough vgrams from starting from each position of the word.
  */
@@ -183,7 +182,7 @@ extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 					upper = info->options->vgramsCount - 1;
 		bool		first_time = true;
 
-		while (len < maxQ && r < wordEnd)
+		while (first_time || (len < maxQ && r < wordEnd))
 		{
 			if (!first_time || r <= p)
 			{
@@ -206,6 +205,7 @@ extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData)
 		len--;
 	}
 }
+#endif
 
 /*
  * Extract rare-enough vgrams that don't contain other rare-enough vgrams.
@@ -324,40 +324,6 @@ extractWords(const char *string, size_t len, WordCallback callback,
 		callback(buf, buf + lowerLen + 2, userData);
 	}
 	pfree(buf);
-}
-
-Datum
-print_vgrams(PG_FUNCTION_ARGS)
-{
-	QGramStatState state;
-	text	   *s = PG_GETARG_TEXT_PP(0);
-	HASH_SEQ_STATUS scanStatus;
-	HASHCTL		qgramsHashCtl;
-	QGramHashValue *item;
-
-	state.minQ = PG_GETARG_INT32(1);
-	state.maxQ = PG_GETARG_INT32(2);
-	state.totalLength = 0;
-	qgramsHashCtl.keysize = sizeof(QGramHashKey);
-	qgramsHashCtl.entrysize = sizeof(QGramHashValue);
-	qgramsHashCtl.hash = qgram_key_hash;
-	qgramsHashCtl.match = qgram_key_match;
-	state.qgramsHash = hash_create("string qgrams hash",
-								   1024,
-								   &qgramsHashCtl,
-								   HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
-	state.context = CurrentMemoryContext;
-
-	extractWords(VARDATA_ANY(s), VARSIZE_ANY_EXHDR(s), collectStatsWord, &state);
-
-	hash_seq_init(&scanStatus, state.qgramsHash);
-	while ((item = (QGramHashValue *) hash_seq_search(&scanStatus)) != NULL)
-	{
-		elog(NOTICE, "qgram: %s " INT64_FORMAT, item->key.qgram, item->count);
-	}
-	elog(NOTICE, "Total length: " INT64_FORMAT, state.totalLength);
-
-	PG_RETURN_VOID();
 }
 
 typedef struct

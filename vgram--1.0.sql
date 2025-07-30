@@ -1,11 +1,6 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION vgram" to load this file. \quit
 
-CREATE FUNCTION print_vgrams(s text, min_q int, max_q int)
-RETURNS void
-AS 'MODULE_PATHNAME'
-LANGUAGE C;
-
 CREATE FUNCTION get_vgrams(s text, min_q int, max_q int, vgrams text[])
 RETURNS text[]
 AS 'MODULE_PATHNAME'

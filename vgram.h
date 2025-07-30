@@ -92,7 +92,6 @@ extern const char *get_wildcard_part(const char *str, int lenstr,
 									 char *buf, int *bytelen, int *charlen);
 extern void extractMinimalVGramsWord(const char *wordStart, const char *wordEnd, void *userData);
 extern void extractWords(const char *string, size_t len, WordCallback callback, void *userData);
-extern void extractVGramsWord(const char *wordStart, const char *wordEnd, void *userData);
 extern void collectStatsWord(const char *wordStart, const char *wordEnd, void *userData);
 extern Datum *extractQueryLike(VGramOptions *options, int32 *nentries, text *pattern);
 
