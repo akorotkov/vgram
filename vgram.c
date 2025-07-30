@@ -228,7 +228,7 @@ extractMinimalVGramsWord(const char *wordStart, const char *wordEnd, void *userD
 					upper = info->options->vgramsCount - 1;
 		bool		first_time = true;
 
-		while (len < maxQ && r < wordEnd)
+		while (first_time || (len < maxQ && r < wordEnd))
 		{
 			if (!first_time || r <= p)
 			{
