@@ -237,15 +237,16 @@ SELECT * FROM titles WHERE s ilike '%ACM International Workshop on Mobile Entity
 DROP INDEX titles_s_idx;
 ALTER TABLE titles ALTER COLUMN s TYPE vgram_text USING s::vgram_text;
 ANALYZE titles;
-EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%abcdefghijk%';
-               QUERY PLAN                
------------------------------------------
- Seq Scan on titles
-   Disabled: true
-   Filter: (s ~~* '%abcdefghijk%'::text)
-(3 rows)
-
 CREATE INDEX titles_s_idx ON titles USING gin (s vgram_gin_ops2 (minq=2, maxq=4, vgrams=:'vgrams'));
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%abcdefghijk%';
+                    QUERY PLAN                     
+---------------------------------------------------
+ Bitmap Heap Scan on titles
+   Recheck Cond: (s ~~* '%abcdefghijk%'::text)
+   ->  Bitmap Index Scan on titles_s_idx
+         Index Cond: (s ~~* '%abcdefghijk%'::text)
+(4 rows)
+
 EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s like '%indexing%';
                   QUERY PLAN                   
 -----------------------------------------------

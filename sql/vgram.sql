@@ -49,10 +49,9 @@ DROP INDEX titles_s_idx;
 ALTER TABLE titles ALTER COLUMN s TYPE vgram_text USING s::vgram_text;
 ANALYZE titles;
 
-EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%abcdefghijk%';
-
 CREATE INDEX titles_s_idx ON titles USING gin (s vgram_gin_ops2 (minq=2, maxq=4, vgrams=:'vgrams'));
 
+EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%abcdefghijk%';
 EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s like '%indexing%';
 EXPLAIN (COSTS OFF) SELECT * FROM titles WHERE s ilike '%annotation%';
 SELECT * FROM titles WHERE s like '%indexing%';
