@@ -198,7 +198,11 @@ compute_vgram_stats(VacAttrStats *stats,
 		text	   *s;
 		int64		prevQGramCount = state.qgramsCount;
 
+#if PG_VERSION_NUM >= 180000
+		vacuum_delay_point(true);
+#else
 		vacuum_delay_point();
+#endif
 
 		value = fetchfunc(stats, string_no, &isnull);
 
