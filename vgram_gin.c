@@ -293,7 +293,7 @@ vgrams_fill(ArrayType *arr, void *ptr)
 	Datum	   *elems;
 	int			i;
 	Size		size = sizeof(int);
-	Pointer		p = (Pointer) ptr;
+	char	   *p = (char *) ptr;
 
 	deconstruct_array(arr, TEXTOID, -1, false, 'i', &elems, NULL, &nVgrams);
 
@@ -305,8 +305,8 @@ vgrams_fill(ArrayType *arr, void *ptr)
 
 	for (i = 0; i < nVgrams; i++)
 	{
-		char	   *vgram = VARDATA_ANY(elems[i]);
-		int			vgramSize = VARSIZE_ANY_EXHDR(elems[i]);
+		char	   *vgram = VARDATA_ANY(DatumGetPointer(elems[i]));
+		int			vgramSize = VARSIZE_ANY_EXHDR(DatumGetPointer(elems[i]));
 
 		if (p)
 		{
