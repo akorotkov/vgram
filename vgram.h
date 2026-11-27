@@ -41,7 +41,7 @@ typedef struct
 	int			vgramOffsets[FLEXIBLE_ARRAY_MEMBER];
 } VGramOptions;
 
-#define GET_VGRAM(opts, i) ((Pointer) (opts) + (opts)->vgramOffsets[(i)] + offsetof(VGramOptions, vgramsCount))
+#define GET_VGRAM(opts, i) ((char *) (opts) + (opts)->vgramOffsets[(i)] + offsetof(VGramOptions, vgramsCount))
 
 typedef void (*WordCallback) (const char *wordStart, const char *wordEnd, void *userData);
 typedef void (*VGramCallBack) (char *vgram, void *userData);
